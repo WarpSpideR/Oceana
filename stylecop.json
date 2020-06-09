@@ -1,0 +1,60 @@
+{
+  "$schema": "https://raw.githubusercontent.com/DotNetAnalyzers/StyleCopAnalyzers/master/StyleCop.Analyzers/StyleCop.Analyzers/Settings/stylecop.schema.json",
+  "settings": {
+    "indentation": {
+      "indentationSize": 4,
+      "tabSize": 4,
+      "useTabs": false
+    },
+    "readabilityRules": {
+      "allowBuiltInTypeAliases": false
+    },
+    "orderingRules": {
+      "elementOrder": [
+        "kind",
+        "constant",
+        "static",
+        "readonly",
+        "accessibility"
+      ],
+      "usingDirectivesPlacement": "outsideNamespace",
+      "systemUsingDirectivesFirst": true,
+      "blankLinesBetweenUsingGroups": "allow"
+    },
+    "namingRules": {
+      "allowCommonHungarianPrefixes": true,
+      "allowedHungarianPrefixes": [],
+      "includeInferredTupleElementNames": true,
+      "tupleElementNameCasing": "PascalCase"
+    },
+    "maintainabilityRules": {
+      "topLevelTypes": [
+        "class",
+        "enum",
+        "interface",
+        "struct"
+      ]
+    },
+    "layoutRules": {
+      "newlineAtEndOfFile": "require",
+      "allowConsecutiveUsings": false
+    },
+    "documentationRules": {
+      "companyName": "Youmanage HR Ltd",
+      "copyrightText": "Copyright (c) {companyName}. All rights reserved.",
+      "xmlHeader": false,
+      "documentInterfaces": true,
+      "documentExposedElements": true,
+      "documentInternalElements": true,
+      "documentPrivateElements": false,
+      "documentPrivateFields": false,
+      "documentationCulture": "en-GB",
+      "fileNamingConvention": "stylecop",
+      "excludeFromPunctuationCheck": [
+        "seealso"
+      ]
+    },
+    "spacingRules": {
+    }
+  }
+}
