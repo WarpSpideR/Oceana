@@ -9,13 +9,14 @@ using NAudio;
 using NAudio.Utils;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
+using Oceana.Core.NAudio;
 
 namespace Oceana.Core
 {
     /// <summary>
     /// Captures audio samples from an input device.
     /// </summary>
-    public class AudioInput : IAudioSource, IDisposable
+    public class NAudioInput : IAudioSource, IDisposable
     {
         private WaveInEvent Device;
 
@@ -24,9 +25,9 @@ namespace Oceana.Core
         private bool Disposed = false;
 
         /// <summary>
-        /// Initialises a new instance of the <see cref="AudioInput"/> class.
+        /// Initialises a new instance of the <see cref="NAudioInput"/> class.
         /// </summary>
-        public AudioInput()
+        public NAudioInput()
         {
             Device = new WaveInEvent();
             Device.WaveFormat = new WaveFormat();
@@ -35,18 +36,23 @@ namespace Oceana.Core
             var waveInProvider = new WaveInProvider(Device);
 
             Provider = new Pcm16BitToSampleProvider(waveInProvider);
+
+            Format = Device.WaveFormat.ToAudioFormat();
         }
 
         /// <summary>
-        /// Initialises a new instance of the <see cref="AudioInput"/> class.
+        /// Initialises a new instance of the <see cref="NAudioInput"/> class.
         /// </summary>
         /// <param name="deviceId">Id of the device to capture audio from.</param>
-        public AudioInput(int deviceId)
+        public NAudioInput(int deviceId)
             : this()
         {
             Device.DeviceNumber = deviceId;
             Device.StartRecording();
         }
+
+        /// <inheritdoc/>
+        public AudioFormat Format { get; }
 
         /// <inheritdoc/>
         public void Dispose()
@@ -56,15 +62,22 @@ namespace Oceana.Core
         }
 
         /// <inheritdoc/>
-        public float[] Read(int count)
+        public float[] Read(int samples)
         {
-            var buffer = new float[count];
+            var requestedSamples = samples * Format.Channels;
 
-            int actual = Provider.Read(buffer, 0, count);
+            var buffer = new float[requestedSamples];
 
-            var result = new float[count];
+            int samplesRead = Provider.Read(buffer, 0, requestedSamples);
 
-            for (int i = 0; i < actual; i++)
+            if (samplesRead == requestedSamples)
+            {
+                return buffer;
+            }
+
+            var result = new float[samplesRead];
+
+            for (int i = 0; i < samplesRead; i++)
             {
                 result[i] = buffer[i];
             }

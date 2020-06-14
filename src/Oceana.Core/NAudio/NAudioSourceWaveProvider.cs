@@ -13,15 +13,15 @@ namespace Oceana.Core
     /// Adapter for an <see cref="IAudioSource"/> to be compatible
     /// with an <see cref="IWaveProvider"/>.
     /// </summary>
-    internal class AudioSourceWaveProvider : ISampleProvider
+    internal class NAudioSourceWaveProvider : ISampleProvider
     {
         private readonly IAudioSource Source;
 
         /// <summary>
-        /// Initialises a new instance of the <see cref="AudioSourceWaveProvider"/> class.
+        /// Initialises a new instance of the <see cref="NAudioSourceWaveProvider"/> class.
         /// </summary>
         /// <param name="source"><see cref="IAudioSource"/> to adapt.</param>
-        public AudioSourceWaveProvider(IAudioSource source)
+        public NAudioSourceWaveProvider(IAudioSource source)
         {
             Source = source;
         }

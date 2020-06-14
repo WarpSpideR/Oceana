@@ -51,9 +51,9 @@ namespace Oceana.Service
 
         private static async Task Real(CancellationToken stoppingToken)
         {
-            var input = new AudioInput(2);
+            var input = new NAudioInput(2);
 
-            var output = new AudioOutput(input);
+            var output = new NAudioOutput(input);
 
             while (!stoppingToken.IsCancellationRequested)
             {

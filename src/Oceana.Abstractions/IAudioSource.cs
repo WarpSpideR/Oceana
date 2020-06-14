@@ -12,10 +12,16 @@ namespace Oceana
     public interface IAudioSource
     {
         /// <summary>
-        /// Reads audio samples from the source.
+        /// Gets the format of the audio source.
         /// </summary>
-        /// <param name="count">The number of samples requested.</param>
+        AudioFormat Format { get; }
+
+        /// <summary>
+        /// Reads the requested number of audio samples from the audio
+        /// source. Note that the result will be of length samples * channels.
+        /// </summary>
+        /// <param name="samples">The number of samples requested.</param>
         /// <returns>A array of audio samples.</returns>
-        float[] Read(int count);
+        float[] Read(int samples);
     }
 }

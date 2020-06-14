@@ -9,7 +9,7 @@ namespace Oceana.Core
     /// <summary>
     /// Represents an output for audio.
     /// </summary>
-    public class AudioOutput : IAudioSink, IDisposable
+    public class NAudioOutput : IAudioSink, IDisposable
     {
         private readonly IAudioSource Source;
         private readonly WaveOutEvent Device;
@@ -17,14 +17,14 @@ namespace Oceana.Core
         private bool disposedValue = false;
 
         /// <summary>
-        /// Initialises a new instance of the <see cref="AudioOutput"/> class.
+        /// Initialises a new instance of the <see cref="NAudioOutput"/> class.
         /// </summary>
         /// <param name="source">Source of audio data.</param>
-        public AudioOutput(IAudioSource source)
+        public NAudioOutput(IAudioSource source)
         {
             Device = new WaveOutEvent();
             Device.DeviceNumber = 0;
-            Device.Init(new AudioSourceWaveProvider(source));
+            Device.Init(new NAudioSourceWaveProvider(source));
             Source = source;
             Device.Play();
         }
@@ -34,6 +34,12 @@ namespace Oceana.Core
         {
             Dispose(true);
             GC.SuppressFinalize(this);
+        }
+
+        /// <inheritdoc/>
+        public void RegisterSource(IAudioSource source, int channelStart)
+        {
+            throw new NotImplementedException();
         }
 
         /// <summary>
