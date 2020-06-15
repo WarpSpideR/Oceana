@@ -30,7 +30,7 @@ namespace Oceana.Web
         /// </summary>
         /// <param name="services">The <see cref="IServiceCollection"/> to
         /// initialize.</param>
-        public void ConfigureServices(IServiceCollection services)
+        public static void ConfigureServices(IServiceCollection services)
         {
             services.AddControllers();
         }
@@ -40,7 +40,7 @@ namespace Oceana.Web
         /// </summary>
         /// <param name="app">The <see cref="IApplicationBuilder"/> to configure.</param>
         /// <param name="env">Environment contextual information.</param>
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+        public static void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
             if (env.IsDevelopment())
             {

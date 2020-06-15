@@ -12,8 +12,7 @@ namespace Oceana.Core.Tests
         public FadeInFilterTest()
         {
             AudioSourceMock = new Mock<IAudioSource>();
-            AudioSourceMock.Setup(m => m.Read(It.IsAny<int>()))
-                .Returns((int count) => PopulateArray(count, 1f));
+            AudioSourceMock.ConfigureDefaults();
         }
 
         [Fact]
@@ -92,20 +91,6 @@ namespace Oceana.Core.Tests
             result[3].ShouldBe(0.6f);
             result[4].ShouldBe(0.8f);
             result[5].ShouldBe(1f);
-        }
-
-        private float[] PopulateArray(int count, float value)
-        {
-            count *= AudioSourceMock.Object.Format.Channels;
-
-            var result = new float[count];
-
-            for (int i = 0; i < count; i++)
-            {
-                result[i] = value;
-            }
-
-            return result;
         }
     }
 }
