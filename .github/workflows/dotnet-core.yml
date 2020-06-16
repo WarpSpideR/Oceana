@@ -23,18 +23,18 @@ jobs:
       run: dotnet build --configuration Release --no-restore
     - name: Test
       run: dotnet test --no-restore --verbosity normal /p:CollectCoverage=true /p:CoverletOutput=TestResults/ /p:CoverletOutputFormat=lcov
-    - name: Codecov
-      uses: codecov/codecov-action@v1.0.7
+    - name: Coveralls GitHub Action
+      uses: coverallsapp/github-action@v1.1.1
       with:
-        # User defined upload name. Visible in Codecov UI
-        name: Oceana.Core Results
-        # Repository upload token - get it from codecov.io. Required only for private repositories
-        token: 00e8b62d-b1f4-40a9-8457-1b6718801526
-        # Path to coverage file to upload
-        file: tests/Oceana.Core.Tests/TestResults/coverage.info
-        # Flag upload to group coverage metrics (e.g. unittests | integration | ui,chrome)
-        flags: unittests # optional
-        # Environment variables to tag the upload with (e.g. PYTHON | OS,PYTHON)
-        # env_vars: # optional
-        # Specify whether or not CI build should fail if Codecov runs into an error during upload
-        fail_ci_if_error: true
+        # 
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        # Path to lcov file
+        path-to-lcov: ./tests/Oceana.Core.Tests/TestResults/coverage.info
+        # Set to true if you are running parallel jobs, then use "parallel_finished: true" for the last action.
+        #parallel: false # optional
+        # Set to true for the last action when using "parallel: true".
+        #parallel-finished: false # optional
+        # Coveralls Enterprise server (more info: https://enterprise.coveralls.io)
+        #coveralls-endpoint: # optional, default is https://coveralls.io
+        # The root folder of the project that originally ran the tests
+        #base-path: # optional
