@@ -1,5 +1,7 @@
 # Oceana
 
+[![Coverage Status](https://coveralls.io/repos/github/WarpSpideR/Oceana/badge.svg?branch=latest)](https://coveralls.io/github/WarpSpideR/Oceana?branch=latest)
+
 Oceana is an open source fully configurable whole-home audio broadcasting server currently under development by Maurice Davidson.
 
 ## Roadmap
