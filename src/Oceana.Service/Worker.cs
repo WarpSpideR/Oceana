@@ -1,9 +1,7 @@
-﻿using System;
-using System.Threading;
+﻿using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using NAudio.Utils;
 using NAudio.Wave;
 using Oceana.Core;
 
@@ -27,13 +25,17 @@ namespace Oceana.Service
 
         private static async Task Test(CancellationToken stoppingToken)
         {
-            var input = new WaveInEvent();
-            input.DeviceNumber = 2;
+            var input = new WaveInEvent
+            {
+                DeviceNumber = 2,
+            };
 
             var inputProvider = new WaveInProvider(input);
 
-            var output = new WaveOutEvent();
-            output.DeviceNumber = 0;
+            var output = new WaveOutEvent
+            {
+                DeviceNumber = 0,
+            };
             output.Init(inputProvider);
 
             input.StartRecording();

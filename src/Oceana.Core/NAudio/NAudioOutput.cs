@@ -1,7 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.IO.Pipelines;
-using System.Text;
 using NAudio.Wave;
 
 namespace Oceana.Core
@@ -11,10 +8,9 @@ namespace Oceana.Core
     /// </summary>
     public class NAudioOutput : IAudioSink, IDisposable
     {
-        private readonly IAudioSource Source;
         private readonly WaveOutEvent Device;
 
-        private bool disposedValue = false;
+        private bool disposedValue;
 
         /// <summary>
         /// Initialises a new instance of the <see cref="NAudioOutput"/> class.
@@ -25,7 +21,6 @@ namespace Oceana.Core
             Device = new WaveOutEvent();
             Device.DeviceNumber = 0;
             Device.Init(new NAudioSourceWaveProvider(source));
-            Source = source;
             Device.Play();
         }
 

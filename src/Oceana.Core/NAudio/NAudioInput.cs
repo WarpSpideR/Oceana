@@ -1,12 +1,4 @@
 ﻿using System;
-using System.Buffers;
-using System.Collections.Generic;
-using System.IO.Pipelines;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using NAudio;
-using NAudio.Utils;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using Oceana.Core.NAudio;
@@ -18,11 +10,11 @@ namespace Oceana.Core
     /// </summary>
     public class NAudioInput : IAudioSource, IDisposable
     {
-        private WaveInEvent Device;
+        private readonly WaveInEvent Device;
 
-        private ISampleProvider Provider;
+        private readonly ISampleProvider Provider;
 
-        private bool Disposed = false;
+        private bool Disposed;
 
         /// <summary>
         /// Initialises a new instance of the <see cref="NAudioInput"/> class.

@@ -1,7 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace Oceana
 {
@@ -52,6 +49,10 @@ namespace Oceana
             => !left.Equals(right);
 
         /// <inheritdoc/>
+        public bool Equals(AudioFormat other)
+            => Equals((object)other);
+
+        /// <inheritdoc/>
         public override bool Equals(object obj)
         {
             if (obj is AudioFormat other)
@@ -66,9 +67,5 @@ namespace Oceana
         /// <inheritdoc/>
         public override int GetHashCode()
             => Channels ^ SampleRate;
-
-        /// <inheritdoc/>
-        public bool Equals(AudioFormat other)
-            => Equals((object)other);
     }
 }

@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace Oceana
+﻿namespace Oceana
 {
     /// <summary>
     /// An audio source that is capable of providing more
