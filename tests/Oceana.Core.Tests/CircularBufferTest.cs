@@ -42,7 +42,7 @@ namespace Oceana.Core.Tests
             _ = buffer.Write(data);
             var result = buffer.Read(4);
 
-            result.SequenceEqual(Enumerable.Range(1, 4));
+            result.SequenceEqual(Enumerable.Range(1, 4)).ShouldBeTrue();
         }
 
         [Fact]
@@ -55,7 +55,7 @@ namespace Oceana.Core.Tests
             _ = buffer.Write(Enumerable.Range(11, 5).ToArray());
             var result = buffer.Read(4);
 
-            result.SequenceEqual(Enumerable.Range(9, 4));
+            result.SequenceEqual(Enumerable.Range(9, 4)).ShouldBeTrue();
         }
 
         [Fact]
@@ -70,6 +70,14 @@ namespace Oceana.Core.Tests
 
             result.Length.ShouldBe(4);
             buffer.ItemsAvailable.ShouldBe(3);
+        }
+
+        [Fact]
+        public void WriteShouldThrowExceptionIfDataNull()
+        {
+            var buffer = new CircularBuffer<int>(10);
+
+            Should.Throw<ArgumentNullException>(() => _ = buffer.Write(null));
         }
 
         [Fact]
