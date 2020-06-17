@@ -26,30 +26,19 @@ jobs:
     - name: Oceana.Core Coverage
       uses: coverallsapp/github-action@v1.1.1
       with:
-        # 
         github-token: ${{ secrets.GITHUB_TOKEN }}
         flag-name: coverage-core
-        # Path to lcov file
         path-to-lcov: ./tests/Oceana.Core.Tests/TestResults/coverage.info
-        # Set to true if you are running parallel jobs, then use "parallel_finished: true" for the last action.
         parallel: true
-        # Coveralls Enterprise server (more info: https://enterprise.coveralls.io)
-        #coveralls-endpoint: # optional, default is https://coveralls.io
-        # The root folder of the project that originally ran the tests
-        #base-path: # optional
     - name: Oceana.Abstractions Coverage
       uses: coverallsapp/github-action@v1.1.1
       with:
-        # 
         github-token: ${{ secrets.GITHUB_TOKEN }}
         flag-name: coverage-abstractions
-        # Path to lcov file
         path-to-lcov: ./tests/Oceana.Abstractions.Tests/TestResults/coverage.info
-        # Set to true if you are running parallel jobs, then use "parallel_finished: true" for the last action.
         parallel: true
-        # Set to true for the last action when using "parallel: true".
+    - name: Coverage Complete
+      uses: coverallsapp/github-action@v1.1.1
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
         parallel-finished: true
-        # Coveralls Enterprise server (more info: https://enterprise.coveralls.io)
-        #coveralls-endpoint: # optional, default is https://coveralls.io
-        # The root folder of the project that originally ran the tests
-        #base-path: # optional
