@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using Moq;
 using Shouldly;
 using Xunit;
@@ -13,6 +14,13 @@ namespace Oceana.Core.Tests
         {
             AudioSourceMock = new Mock<IAudioSource>();
             AudioSourceMock.ConfigureDefaults();
+        }
+
+        [Fact]
+        public void ShouldThrowExceptionWhenNullAudioSourceSupplied()
+        {
+            IAudioSource? source = null;
+            Should.Throw<ArgumentNullException>(() => new FadeInFilter(source));
         }
 
         [Fact]
@@ -91,6 +99,25 @@ namespace Oceana.Core.Tests
             result[3].ShouldBe(0.6f);
             result[4].ShouldBe(0.8f);
             result[5].ShouldBe(1f);
+        }
+
+        [Fact]
+        public void ShouldReturnBufferWithoutModificationWhenFadingComplete()
+        {
+            var expected = new float[] { 1f, 1f, 1f, 1f, 1f };
+            AudioSourceMock.Setup(m => m.Format)
+                .Returns(new AudioFormat(1, 1));
+            AudioSourceMock.Setup(m => m.Read(5))
+                .Returns(expected);
+
+            var filter = new FadeInFilter(AudioSourceMock.Object);
+            filter.Duration = TimeSpan.FromSeconds(5);
+
+            _ = filter.Read(10);
+
+            var result = filter.Read(5);
+            result.ShouldBe(expected);
+            result.SequenceEqual(Enumerable.Repeat(1f, 5)).ShouldBeTrue();
         }
     }
 }
