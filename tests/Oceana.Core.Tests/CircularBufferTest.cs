@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using Shouldly;
@@ -73,11 +74,12 @@ namespace Oceana.Core.Tests
         }
 
         [Fact]
+        [SuppressMessage("", "CS8625", Justification = "Testing for null reference")]
         public void WriteShouldThrowExceptionIfDataNull()
         {
             var buffer = new CircularBuffer<int>(10);
 
-            Should.Throw<ArgumentNullException>(() => _ = buffer.Write(null));
+            _ = Should.Throw<ArgumentNullException>(() => _ = buffer.Write(null));
         }
 
         [Fact]

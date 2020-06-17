@@ -18,6 +18,12 @@ namespace Oceana.Abstractions.Tests
         }
 
         [Fact]
+        public void EqualsShouldReturnFalseWhenNotAudioFormat()
+        {
+            new AudioFormat(1, 10).Equals(new object()).ShouldBeFalse();
+        }
+
+        [Fact]
         public void NotEqualOperatorShouldReturnCorrectlyForDifferingChannelWidth()
         {
             var left = new AudioFormat(1, 10);

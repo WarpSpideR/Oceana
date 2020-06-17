@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using Moq;
 using Shouldly;
@@ -17,10 +18,10 @@ namespace Oceana.Core.Tests
         }
 
         [Fact]
+        [SuppressMessage("", "CS8625", Justification = "Testing for null reference")]
         public void ShouldThrowExceptionWhenNullAudioSourceSupplied()
         {
-            IAudioSource? source = null;
-            Should.Throw<ArgumentNullException>(() => new FadeInFilter(source));
+            _ = Should.Throw<ArgumentNullException>(() => _ = new FadeInFilter(null));
         }
 
         [Fact]
@@ -40,8 +41,10 @@ namespace Oceana.Core.Tests
             AudioSourceMock.Setup(m => m.Format)
                 .Returns(new AudioFormat(1, 1));
 
-            var filter = new FadeInFilter(AudioSourceMock.Object);
-            filter.Duration = TimeSpan.FromSeconds(5);
+            var filter = new FadeInFilter(AudioSourceMock.Object)
+            {
+                Duration = TimeSpan.FromSeconds(5)
+            };
 
             var result = filter.Read(10);
 
@@ -59,8 +62,10 @@ namespace Oceana.Core.Tests
             AudioSourceMock.Setup(m => m.Format)
                 .Returns(new AudioFormat(2, 1));
 
-            var filter = new FadeInFilter(AudioSourceMock.Object);
-            filter.Duration = TimeSpan.FromSeconds(5);
+            var filter = new FadeInFilter(AudioSourceMock.Object)
+            {
+                Duration = TimeSpan.FromSeconds(5)
+            };
 
             var result = filter.Read(10);
 
@@ -84,8 +89,10 @@ namespace Oceana.Core.Tests
             AudioSourceMock.Setup(m => m.Format)
                 .Returns(new AudioFormat(1, 1));
 
-            var filter = new FadeInFilter(AudioSourceMock.Object);
-            filter.Duration = TimeSpan.FromSeconds(5);
+            var filter = new FadeInFilter(AudioSourceMock.Object)
+            {
+                Duration = TimeSpan.FromSeconds(5)
+            };
 
             var result = filter.Read(10);
             result[9].ShouldBe(1f);
@@ -110,8 +117,10 @@ namespace Oceana.Core.Tests
             AudioSourceMock.Setup(m => m.Read(5))
                 .Returns(expected);
 
-            var filter = new FadeInFilter(AudioSourceMock.Object);
-            filter.Duration = TimeSpan.FromSeconds(5);
+            var filter = new FadeInFilter(AudioSourceMock.Object)
+            {
+                Duration = TimeSpan.FromSeconds(5)
+            };
 
             _ = filter.Read(10);
 

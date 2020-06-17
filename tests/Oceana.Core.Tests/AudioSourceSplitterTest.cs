@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Moq;
 using Shouldly;
@@ -15,6 +16,15 @@ namespace Oceana.Core.Tests
         {
             AudioSource = new Mock<IAudioSource>();
             AudioSource.ConfigureDefaults();
+            AudioSource.Setup(m => m.Format)
+                .Returns(new AudioFormat(2, 10));
+        }
+
+        [Fact]
+        [SuppressMessage("", "CS8625", Justification = "Testing for null reference")]
+        public void ShouldThrowExceptionWhenAudioSourceIsNull()
+        {
+            Should.Throw<ArgumentNullException>(() => _ = new AudioSourceSplitter(null));
         }
 
         [Fact]
@@ -35,26 +45,9 @@ namespace Oceana.Core.Tests
         [InlineData(-5, 5)]
         public void CreateAudioSourceShouldThrowWhenChannelsOutOfBounds(int start, int end)
         {
-            AudioSource.Setup(m => m.Format)
-                .Returns(new AudioFormat(2, 10));
-
             var splitter = new AudioSourceSplitter(AudioSource.Object);
 
             Should.Throw<ArgumentOutOfRangeException>(() => splitter.CreateAudioSource(start..end));
         }
-
-        public void GetAudioSourceShouldReturnSourceWithCorrectChannelWidth()
-        {
-            AudioSource.Setup(m => m.Format)
-                .Returns(new AudioFormat(2, 10));
-
-            var splitter = new AudioSourceSplitter(AudioSource.Object);
-
-            splitter.CreateAudioSource(0);
-
-            var result = splitter.GetAudioSource(0);
-
-            ((int)result.Format.Channels).ShouldBe(1);
-        } 
     }
 }

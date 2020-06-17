@@ -9,7 +9,7 @@ namespace Oceana.Core
     /// </summary>
     public class FadeInFilter : IAudioSource
     {
-        private IAudioSource Source;
+        private readonly IAudioSource Source;
         private int SampleDuration;
         private int CurrentSample;
         private TimeSpan DurationLocal;
