@@ -23,7 +23,7 @@ jobs:
       run: dotnet build --configuration Release --no-restore
     - name: Test
       run: dotnet test --no-restore --verbosity normal /p:CollectCoverage=true /p:CoverletOutput=TestResults/ /p:CoverletOutputFormat=lcov
-    - name: Coveralls GitHub Action
+    - name: Oceana.Core Coverage
       uses: coverallsapp/github-action@v1.1.1
       with:
         # 
@@ -31,9 +31,24 @@ jobs:
         # Path to lcov file
         path-to-lcov: ./tests/Oceana.Core.Tests/TestResults/coverage.info
         # Set to true if you are running parallel jobs, then use "parallel_finished: true" for the last action.
-        #parallel: false # optional
+        parallel: true
         # Set to true for the last action when using "parallel: true".
-        #parallel-finished: false # optional
+        parallel-finished: false
+        # Coveralls Enterprise server (more info: https://enterprise.coveralls.io)
+        #coveralls-endpoint: # optional, default is https://coveralls.io
+        # The root folder of the project that originally ran the tests
+        #base-path: # optional
+    - name: Oceana.Abstractions Coverage
+      uses: coverallsapp/github-action@v1.1.1
+      with:
+        # 
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        # Path to lcov file
+        path-to-lcov: ./tests/Oceana.Abstractions.Tests/TestResults/coverage.info
+        # Set to true if you are running parallel jobs, then use "parallel_finished: true" for the last action.
+        parallel: true
+        # Set to true for the last action when using "parallel: true".
+        parallel-finished: true
         # Coveralls Enterprise server (more info: https://enterprise.coveralls.io)
         #coveralls-endpoint: # optional, default is https://coveralls.io
         # The root folder of the project that originally ran the tests
