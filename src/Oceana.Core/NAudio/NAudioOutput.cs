@@ -18,8 +18,10 @@ namespace Oceana.Core
         /// <param name="source">Source of audio data.</param>
         public NAudioOutput(IAudioSource source)
         {
-            Device = new WaveOutEvent();
-            Device.DeviceNumber = 0;
+            Device = new WaveOutEvent
+            {
+                DeviceNumber = 0,
+            };
             Device.Init(new NAudioSourceWaveProvider(source));
             Device.Play();
         }

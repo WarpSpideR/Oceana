@@ -23,7 +23,6 @@ namespace Oceana.Core
         {
             Device = new WaveInEvent();
             Device.WaveFormat = new WaveFormat();
-            Device.RecordingStopped += Device_RecordingStopped;
 
             var waveInProvider = new WaveInProvider(Device);
 
@@ -41,6 +40,16 @@ namespace Oceana.Core
         {
             Device.DeviceNumber = deviceId;
             Device.StartRecording();
+        }
+
+        /// <summary>
+        /// Initialises a new instance of the <see cref="NAudioInput"/> class.
+        /// </summary>
+        /// <param name="provider">Provider to use.</param>
+        internal NAudioInput(ISampleProvider provider)
+            : this()
+        {
+            Provider = provider;
         }
 
         /// <inheritdoc/>
@@ -93,11 +102,6 @@ namespace Oceana.Core
 
                 Disposed = true;
             }
-        }
-
-        private void Device_RecordingStopped(object sender, StoppedEventArgs e)
-        {
-            throw new NotImplementedException();
         }
     }
 }
