@@ -10,7 +10,7 @@ namespace Oceana.Core
     /// </summary>
     public class NAudioInput : IAudioSource, IDisposable
     {
-        private readonly WaveInEvent Device;
+        private readonly IWaveIn Device;
 
         private readonly ISampleProvider Provider;
 
@@ -20,15 +20,8 @@ namespace Oceana.Core
         /// Initialises a new instance of the <see cref="NAudioInput"/> class.
         /// </summary>
         public NAudioInput()
+            : this(0)
         {
-            Device = new WaveInEvent();
-            Device.WaveFormat = new WaveFormat();
-
-            var waveInProvider = new WaveInProvider(Device);
-
-            Provider = new Pcm16BitToSampleProvider(waveInProvider);
-
-            Format = Device.WaveFormat.ToAudioFormat();
         }
 
         /// <summary>
@@ -36,9 +29,12 @@ namespace Oceana.Core
         /// </summary>
         /// <param name="deviceId">Id of the device to capture audio from.</param>
         public NAudioInput(int deviceId)
-            : this()
         {
-            Device.DeviceNumber = deviceId;
+            Device = new WaveInEvent
+            {
+                DeviceNumber = deviceId,
+            };
+            Provider = new Pcm16BitToSampleProvider(new WaveInProvider(Device));
             Device.StartRecording();
         }
 
@@ -46,10 +42,12 @@ namespace Oceana.Core
         /// Initialises a new instance of the <see cref="NAudioInput"/> class.
         /// </summary>
         /// <param name="provider">Provider to use.</param>
-        internal NAudioInput(ISampleProvider provider)
-            : this()
+        /// <param name="waveIn">The wave in device.</param>
+        internal NAudioInput(IWaveIn waveIn, ISampleProvider provider)
         {
+            Device = waveIn;
             Provider = provider;
+            Format = Device.WaveFormat.ToAudioFormat();
         }
 
         /// <inheritdoc/>

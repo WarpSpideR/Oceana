@@ -1,4 +1,5 @@
-﻿using System.Threading;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -23,8 +24,28 @@ namespace Oceana.Service
             Logger = logger;
         }
 
-        private static async Task Test(CancellationToken stoppingToken)
+        /// <summary>
+        /// Begins Oceana server.
+        /// </summary>
+        /// <param name="stoppingToken">Cancellation token to initiate termination.</param>
+        /// <returns>Task details.</returns>
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            await RealAsync(stoppingToken)
+                .ConfigureAwait(false);
+
+            if (stoppingToken == new CancellationToken(true))
+            {
+                await TestAsync(stoppingToken)
+                    .ConfigureAwait(false);
+            }
+        }
+
+        [SuppressMessage("Globalization", "CA1303:Do not pass literals as localized parameters", Justification = "Debug message.")]
+        private async Task TestAsync(CancellationToken stoppingToken)
+        {
+            Logger.LogInformation("Testing NAudio components.");
+
             var input = new WaveInEvent
             {
                 DeviceNumber = 2,
@@ -51,8 +72,11 @@ namespace Oceana.Service
             output.Dispose();
         }
 
-        private static async Task Real(CancellationToken stoppingToken)
+        [SuppressMessage("Globalization", "CA1303:Do not pass literals as localized parameters", Justification = "Debug message.")]
+        private async Task RealAsync(CancellationToken stoppingToken)
         {
+            Logger.LogInformation("Testing Oceana components.");
+
             var input = new NAudioInput(2);
 
             var output = new NAudioOutput(input);
@@ -65,23 +89,6 @@ namespace Oceana.Service
 
             input.Dispose();
             output.Dispose();
-        }
-
-        /// <summary>
-        /// Begins Oceana server.
-        /// </summary>
-        /// <param name="stoppingToken">Cancellation token to initiate termination.</param>
-        /// <returns>Task details.</returns>
-        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-        {
-            await Real(stoppingToken)
-                .ConfigureAwait(false);
-
-            if (stoppingToken == new CancellationToken(true))
-            {
-                await Test(stoppingToken)
-                    .ConfigureAwait(false);
-            }
         }
     }
 }
