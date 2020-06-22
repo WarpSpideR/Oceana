@@ -8,7 +8,7 @@ namespace Oceana.Core
     /// </summary>
     public class NAudioOutput : IAudioSink, IDisposable
     {
-        private readonly WaveOutEvent Device;
+        private readonly IWavePlayer Device;
 
         private bool disposedValue;
 
@@ -17,11 +17,18 @@ namespace Oceana.Core
         /// </summary>
         /// <param name="source">Source of audio data.</param>
         public NAudioOutput(IAudioSource source)
+            : this(new WaveOutEvent(), source)
         {
-            Device = new WaveOutEvent
-            {
-                DeviceNumber = 0,
-            };
+        }
+
+        /// <summary>
+        /// Initialises a new instance of the <see cref="NAudioOutput"/> class.
+        /// </summary>
+        /// <param name="device">Output device.</param>
+        /// <param name="source">Audio source.</param>
+        internal NAudioOutput(IWavePlayer device, IAudioSource source)
+        {
+            Device = device;
             Device.Init(new NAudioSourceWaveProvider(source));
             Device.Play();
         }
