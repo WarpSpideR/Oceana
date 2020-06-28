@@ -7,6 +7,11 @@
     public interface IMultipleAudioSource
     {
         /// <summary>
+        /// Gets the format of the audio source.
+        /// </summary>
+        AudioFormat Format { get; }
+
+        /// <summary>
         /// Gets the number of <see cref="IAudioSource"/>s available.
         /// </summary>
         int Count { get; }

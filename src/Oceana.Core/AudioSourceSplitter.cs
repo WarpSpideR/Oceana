@@ -10,7 +10,7 @@ namespace Oceana.Core
     public class AudioSourceSplitter : IMultipleAudioSource
     {
         private readonly IAudioSource Source;
-        private readonly List<Range> Outputs;
+        private readonly List<AudioSplitMap> Outputs;
 
         /// <summary>
         /// Initialises a new instance of the <see cref="AudioSourceSplitter"/> class.
@@ -19,39 +19,84 @@ namespace Oceana.Core
         public AudioSourceSplitter(IAudioSource source)
         {
             Source = source ?? throw new ArgumentNullException(nameof(source));
-            Outputs = new List<Range>();
+            Outputs = new List<AudioSplitMap>();
+            Format = Source.Format;
         }
 
         /// <inheritdoc/>
         public int Count => Outputs.Count;
 
+        /// <inheritdoc/>
+        public AudioFormat Format { get; }
+
         /// <summary>
         /// Creates an new audio output.
         /// </summary>
         /// <param name="channel">Channel to create the output from.</param>
-        public void CreateAudioSource(short channel)
-            => CreateAudioSource(new Range(channel, channel));
+        /// <returns>The newly created <see cref="IAudioSource"/>.</returns>
+        public IAudioSource CreateAudioSource(short channel)
+            => CreateAudioSource(new List<int> { channel });
 
         /// <summary>
         /// Creates a new audio output.
         /// </summary>
         /// <param name="inputChannels">The <see cref="Range"/> of channels
         /// from the input <see cref="IAudioSource"/> to use.</param>
-        public void CreateAudioSource(Range inputChannels)
+        /// <returns>The newly created <see cref="IAudioSource"/>.</returns>
+        public IAudioSource CreateAudioSource(Range inputChannels)
+            => CreateAudioSource(inputChannels.ToList());
+
+        /// <summary>
+        /// Creates a new audio output.
+        /// </summary>
+        /// <param name="inputChannels">An ordered list of input channels
+        /// that are to be mapped to the new audio source.</param>
+        /// <returns>The newly created <see cref="IAudioSource"/>.</returns>
+        public IAudioSource CreateAudioSource(IList<int> inputChannels)
         {
-            if (inputChannels.Start.Value < 0
-                || inputChannels.End.Value >= Source.Format.Channels)
+            _ = inputChannels ?? throw new ArgumentNullException(nameof(inputChannels));
+
+            foreach (var channel in inputChannels)
             {
-                throw new ArgumentOutOfRangeException(nameof(inputChannels));
+                if (channel < 0
+                    || channel >= Source.Format.Channels)
+                {
+                    throw new ArgumentOutOfRangeException(nameof(inputChannels));
+                }
             }
 
-            Outputs.Add(inputChannels);
+            var source = new SplitAudioSource(this, inputChannels.Count);
+
+            Outputs.Add(new AudioSplitMap(source, inputChannels));
+
+            return source;
         }
 
         /// <inheritdoc/>
         public IAudioSource GetAudioSource(int index)
         {
             throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Used by child sources to request more samples.
+        /// </summary>
+        /// <param name="samples">The number of samples being requested.</param>
+        internal void RequestRead(int samples)
+        {
+            var input = Source.Read(samples);
+
+            for (var sample = 0; sample < samples; sample++)
+            {
+                foreach (var output in Outputs)
+                {
+                    foreach (var channel in output.Channels)
+                    {
+                        var index = (sample * Format.Channels) + channel;
+                        output.Source.Write(input[index]);
+                    }
+                }
+            }
         }
     }
 }

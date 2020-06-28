@@ -118,6 +118,28 @@ namespace Oceana.Core.Tests
         }
 
         [Fact]
+        public void WriteSingleShouldWriteDataIfSpaceAvailable()
+        {
+            var buffer = new CircularBuffer<int>(10);
+
+            var result = buffer.Write(1);
+
+            result.ShouldBeTrue();
+            buffer.ItemsAvailable.ShouldBe(1);
+        }
+
+        [Fact]
+        public void WriteSingleShouldReportNoDataWrittenIfSpaceNotAvailable()
+        {
+            var buffer = new CircularBuffer<int>(10);
+            buffer.Write(new int[10]);
+
+            var result = buffer.Write(1);
+
+            result.ShouldBeFalse();
+        }
+
+        [Fact]
         public void ItemsAvailableShouldUpdateWhenWrittenTo()
         {
             var buffer = new CircularBuffer<int>(10);
