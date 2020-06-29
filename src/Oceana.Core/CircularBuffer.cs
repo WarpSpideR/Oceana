@@ -46,7 +46,7 @@ namespace Oceana.Core
         /// <param name="data">Data to be written to the buffer.</param>
         /// <returns>True if the data was written, false otherwise.</returns>
         public bool Write(T data)
-            => Write(new T[] { data }) > 0;
+            => Write(new[] { data }) > 0;
 
         /// <summary>
         /// Writes data to the buffer.

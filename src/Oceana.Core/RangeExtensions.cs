@@ -14,7 +14,7 @@ namespace Oceana.Core
         /// </summary>
         /// <param name="range">The <see cref="Range"/> to convert.</param>
         /// <returns>A <see cref="List{T}"/> of the numbers.</returns>
-        public static List<int> ToList(this Range range)
+        public static IList<int> ToList(this Range range)
         {
             var number = range.Start.Value;
             var count = range.End.Value - range.Start.Value;
