@@ -1,0 +1,10 @@
+﻿{
+  "profiles": {
+    "Oceana.Agent.Windows": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

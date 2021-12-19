@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Oceana.Core
+namespace Oceana
 {
     /// <summary>
     /// Provides a means to buffer an incomming <see cref="IAudioSource"/>.

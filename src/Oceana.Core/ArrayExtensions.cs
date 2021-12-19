@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Oceana.Core
+namespace Oceana
 {
     /// <summary>
     /// Helper methods to aid working with <see cref="Array"/>s.

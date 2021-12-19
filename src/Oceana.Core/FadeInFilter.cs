@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Oceana.Core
+namespace Oceana
 {
     /// <summary>
     /// Smoothly fades in the output from an <see cref="IAudioSource"/>.

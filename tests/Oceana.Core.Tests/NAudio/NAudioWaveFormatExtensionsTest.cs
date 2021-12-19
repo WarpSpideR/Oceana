@@ -1,5 +1,4 @@
 ﻿using NAudio.Wave;
-using Oceana.Core.NAudio;
 using Shouldly;
 using Xunit;
 

@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace Oceana.Core
+namespace Oceana
 {
     /// <summary>
     /// Holds mapping information about the channels for

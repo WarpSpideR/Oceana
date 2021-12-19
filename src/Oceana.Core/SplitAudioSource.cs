@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Oceana.Core
+namespace Oceana
 {
     /// <summary>
     /// An <see cref="IAudioSource"/> that has been split

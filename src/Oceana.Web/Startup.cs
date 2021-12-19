@@ -32,7 +32,7 @@ namespace Oceana.Web
         /// initialize.</param>
         public static void ConfigureServices(IServiceCollection services)
         {
-            services.AddControllers();
+            services.AddMvc();
         }
 
         /// <summary>
@@ -48,6 +48,7 @@ namespace Oceana.Web
             }
 
             app.UseHttpsRedirection();
+            app.UseStaticFiles();
 
             app.UseRouting();
 

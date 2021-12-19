@@ -1,10 +1,13 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System;
+using System.Diagnostics.CodeAnalysis;
+using System.IO;
+using System.Net;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NAudio.Wave;
-using Oceana.Core;
 
 namespace Oceana.Service
 {
@@ -14,6 +17,8 @@ namespace Oceana.Service
     public class Worker : BackgroundService
     {
         private readonly ILogger Logger;
+
+        private Stream? ConnectionStream;
 
         /// <summary>
         /// Initialises a new instance of the <see cref="Worker"/> class.
@@ -31,64 +36,65 @@ namespace Oceana.Service
         /// <returns>Task details.</returns>
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            await RealAsync(stoppingToken)
+            await TestCommsAsync(stoppingToken)
                 .ConfigureAwait(false);
 
             if (stoppingToken == new CancellationToken(true))
             {
-                await TestAsync(stoppingToken)
+                await TestCommsAsync(stoppingToken)
                     .ConfigureAwait(false);
             }
         }
 
-        [SuppressMessage("Globalization", "CA1303:Do not pass literals as localized parameters", Justification = "Debug message.")]
-        private async Task TestAsync(CancellationToken stoppingToken)
+        [SuppressMessage("Globalization", "CA1303:Do not pass literals as localized parameters", Justification = "Reasons..")]
+        private async Task TestCommsAsync(CancellationToken stoppingToken)
         {
-            Logger.LogInformation("Testing NAudio components.");
+            Logger.LogInformation("Attempting to connect");
 
-            var input = new WaveInEvent
+            var communicationSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+            await communicationSocket.ConnectAsync(IPAddress.Parse("192.168.32.57"), 6012)
+                .ConfigureAwait(false);
+
+            Logger.LogInformation("Connected");
+
+            try
             {
-                DeviceNumber = 2,
-            };
+                ConnectionStream = new NetworkStream(communicationSocket);
 
-            var inputProvider = new WaveInProvider(input);
+                using var input = new NAudioSourceEvent(2);
 
-            var output = new WaveOutEvent
+                input.SamplesAvailable += Input_SamplesAvailable;
+                Logger.LogInformation("Starting");
+
+                while (!stoppingToken.IsCancellationRequested)
+                {
+                    await Task.Delay(1000)
+                        .ConfigureAwait(false);
+                }
+            }
+            catch (Exception e)
             {
-                DeviceNumber = 0,
-            };
-            output.Init(inputProvider);
-
-            input.StartRecording();
-            output.Play();
-
-            while (!stoppingToken.IsCancellationRequested)
-            {
-                await Task.Delay(1000, stoppingToken)
-                    .ConfigureAwait(false);
+                Logger.LogError(e, "Bad things happened");
+                throw;
             }
 
-            input.Dispose();
-            output.Dispose();
+            communicationSocket.Close();
         }
 
-        [SuppressMessage("Globalization", "CA1303:Do not pass literals as localized parameters", Justification = "Debug message.")]
-        private async Task RealAsync(CancellationToken stoppingToken)
+        private void Input_SamplesAvailable(object? sender, SamplesAvailableEventArgs e)
         {
-            Logger.LogInformation("Testing Oceana components.");
-
-            var input = new NAudioInput(2);
-
-            var output = new NAudioOutput(input);
-
-            while (!stoppingToken.IsCancellationRequested)
+            if (ConnectionStream == null)
             {
-                await Task.Delay(1000, stoppingToken)
-                    .ConfigureAwait(false);
+                return;
             }
 
-            input.Dispose();
-            output.Dispose();
+            var bytes = new byte[e.Samples.Length * sizeof(float)];
+            Buffer.BlockCopy(e.Samples, 0, bytes, 0, bytes.Length);
+
+            Logger.LogInformation($"Writing {e.Samples.Length} samples");
+            var message = new AudioDataMessageWriter(bytes);
+
+            message.SendAsync(ConnectionStream).Wait();
         }
     }
 }

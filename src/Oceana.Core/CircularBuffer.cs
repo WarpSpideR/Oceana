@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Oceana.Core
+namespace Oceana
 {
     /// <summary>
     /// A simple circular buffer.
@@ -113,7 +113,7 @@ namespace Oceana.Core
                 if (itemsToEnd != count)
                 {
                     ReadHead = 0;
-                    Array.Copy(Buffer, ReadHead, result, count - itemsToEnd, count - itemsToEnd);
+                    Array.Copy(Buffer, ReadHead, result, itemsToEnd, count - itemsToEnd);
                     ReadHead += count - itemsToEnd;
                 }
 

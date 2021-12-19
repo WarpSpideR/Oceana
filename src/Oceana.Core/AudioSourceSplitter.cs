@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace Oceana.Core
+namespace Oceana
 {
     /// <summary>
     /// Component that can split an <see cref="IAudioSource"/>
@@ -36,15 +36,6 @@ namespace Oceana.Core
         /// <returns>The newly created <see cref="IAudioSource"/>.</returns>
         public IAudioSource CreateAudioSource(short channel)
             => CreateAudioSource(new List<int> { channel });
-
-        /// <summary>
-        /// Creates a new audio output.
-        /// </summary>
-        /// <param name="inputChannels">The <see cref="Range"/> of channels
-        /// from the input <see cref="IAudioSource"/> to use.</param>
-        /// <returns>The newly created <see cref="IAudioSource"/>.</returns>
-        public IAudioSource CreateAudioSource(Range inputChannels)
-            => CreateAudioSource(inputChannels.ToList());
 
         /// <summary>
         /// Creates a new audio output.
