@@ -1,0 +1,17 @@
+is_global=true
+
+###############################
+# Analyzer Rules              #
+###############################
+dotnet_diagnostic.IDE0076.severity = warning
+dotnet_diagnostic.IDE0077.severity = warning
+dotnet_diagnostic.SA1101.severity = none
+dotnet_diagnostic.SA1201.severity = none
+dotnet_diagnostic.SA1204.severity = none
+dotnet_diagnostic.SA1633.severity = none
+dotnet_diagnostic.SA1642.severity = none
+
+# TODO: Remove these once the new version of StyleCop.Analysers is released.
+dotnet_diagnostic.SA1202.severity = none
+dotnet_diagnostic.SA1200.severity = none
+dotnet_diagnostic.SA1313.severity = none

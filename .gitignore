@@ -181,7 +181,6 @@ publish/
 PublishScripts/
 
 # NuGet Packages
-.nuget/
 *.nupkg
 # The packages folder can be ignored because of Package Restore
 **/[Pp]ackages/*
@@ -295,6 +294,7 @@ paket-files/
 # JetBrains Rider
 .idea/
 *.sln.iml
+global.json
 
 # CodeRush personal settings
 .cr/personal
@@ -339,3 +339,12 @@ ASALocalRun/
 
 # BeatPulse healthcheck temp database
 healthchecksdb
+/CaseNest.Web/WordAddIn/dist
+/CaseNest.Linux.Functions/local.settings.json
+
+
+# vscode settings
+.vscode
+
+# RotaNest specific excludes
+/RotaNest/**/local.settings.json

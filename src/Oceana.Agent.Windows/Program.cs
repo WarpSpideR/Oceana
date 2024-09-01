@@ -1,24 +1,56 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+﻿using System.Net;
+using NAudio.Wave;
 
-namespace Oceana.Agent.Windows
+namespace Oceana.Agent.Windows;
+
+/// <summary>
+/// Main entry point to the agent.
+/// </summary>
+public static class Program
 {
-    public class Program
+    /// <summary>
+    /// Main entry point to the agent.
+    /// </summary>
+    /// <param name="args">Additional command line arguments passed to the agent.</param>
+    /// <returns>Task.</returns>
+    public static async Task Main(string[] args)
     {
-        public static void Main(string[] args)
+        Console.WriteLine("Select mode to run in:");
+        Console.WriteLine("1: Sender");
+        Console.WriteLine("2: Receiver");
+
+        var mode = int.Parse(Console.ReadLine() ?? "1");
+
+        switch (mode)
         {
-            CreateHostBuilder(args).Build().Run();
+            case 1:
+                Console.WriteLine("Sending audio");
+
+                var sender = new TcpAudioSender(new IPEndPoint(IPAddress.Loopback, 8090));
+
+                var reader = new Mp3FileReader("Sound.mp3");
+                var buffer = new byte[1024 * 1024 * 5];
+                var bytes = 0;
+                do
+                {
+                    bytes = await reader.ReadAsync(buffer);
+
+                    await sender.SendAsync(buffer[..bytes]);
+                }
+                while (bytes > 0);
+
+                Console.WriteLine("Bytes sent");
+
+                break;
+            case 2:
+                var listener = new AgentTcpListener();
+                await listener.ListenAsync(default);
+
+                break;
         }
 
-        public static IHostBuilder CreateHostBuilder(string[] args) =>
-            Host.CreateDefaultBuilder(args)
-                .ConfigureServices((hostContext, services) =>
-                {
-                    services.AddHostedService<Worker>();
-                });
+        Console.WriteLine("Press any key to close...");
+
+        _ = Console.ReadLine();
     }
 }
