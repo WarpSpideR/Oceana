@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Sockets;
-using Oceana.Agent.Windows.Configuration;
 using Oceana.Agent.Windows.Playback;
 using Serilog;
 
@@ -19,7 +18,7 @@ public sealed class AudioAgentListener
 
     private readonly int port;
     private readonly IAudioPlayerFactory playerFactory;
-    private readonly IReadOnlyList<AudioOutputOptions> outputOptions;
+    private readonly RoutingStore routingStore;
     private readonly ILogger logger;
 
     /// <summary>
@@ -27,13 +26,13 @@ public sealed class AudioAgentListener
     /// </summary>
     /// <param name="port">The TCP port to listen on.</param>
     /// <param name="playerFactory">The factory used to create output players for each session.</param>
-    /// <param name="outputOptions">The configured output routing passed to each session.</param>
+    /// <param name="routingStore">The store the current routing is read from at the start of each connection.</param>
     /// <param name="logger">The logger used to report listener activity.</param>
-    public AudioAgentListener(int port, IAudioPlayerFactory playerFactory, IReadOnlyList<AudioOutputOptions> outputOptions, ILogger logger)
+    public AudioAgentListener(int port, IAudioPlayerFactory playerFactory, RoutingStore routingStore, ILogger logger)
     {
         this.port = port;
         this.playerFactory = playerFactory;
-        this.outputOptions = outputOptions;
+        this.routingStore = routingStore;
         this.logger = logger;
     }
 
@@ -77,7 +76,7 @@ public sealed class AudioAgentListener
 
         try
         {
-            var session = new AudioPlaybackSession(playerFactory, outputOptions, logger);
+            var session = new AudioPlaybackSession(playerFactory, routingStore.Current, logger);
             await using var stream = client.GetStream();
             await session.RunAsync(stream, cancellationToken);
             logger.Information("Server {Remote} disconnected.", remote);

@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.6.11806.211 stable
+VisualStudioVersion = 18.6.11806.211
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{0EACC0D8-B7B7-4A81-BD0B-C334533485AF}"
 	ProjectSection(SolutionItems) = preProject
@@ -34,6 +34,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oceana.Server.Tests", "tests\Oceana.Server.Tests\Oceana.Server.Tests.csproj", "{A302B0F0-822F-4C37-9D04-018291626C7E}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oceana.Protocol.Tests", "tests\Oceana.Protocol.Tests\Oceana.Protocol.Tests.csproj", "{05F89C27-B8C7-46E1-B758-E677A69CA758}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Oceana.Contracts", "src\Oceana.Contracts\Oceana.Contracts.csproj", "{0FBB08A7-BA4C-4794-AC9C-CA5F65BC9B0A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -117,6 +119,18 @@ Global
 		{05F89C27-B8C7-46E1-B758-E677A69CA758}.Release|x64.Build.0 = Release|Any CPU
 		{05F89C27-B8C7-46E1-B758-E677A69CA758}.Release|x86.ActiveCfg = Release|Any CPU
 		{05F89C27-B8C7-46E1-B758-E677A69CA758}.Release|x86.Build.0 = Release|Any CPU
+		{0FBB08A7-BA4C-4794-AC9C-CA5F65BC9B0A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0FBB08A7-BA4C-4794-AC9C-CA5F65BC9B0A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0FBB08A7-BA4C-4794-AC9C-CA5F65BC9B0A}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{0FBB08A7-BA4C-4794-AC9C-CA5F65BC9B0A}.Debug|x64.Build.0 = Debug|Any CPU
+		{0FBB08A7-BA4C-4794-AC9C-CA5F65BC9B0A}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{0FBB08A7-BA4C-4794-AC9C-CA5F65BC9B0A}.Debug|x86.Build.0 = Debug|Any CPU
+		{0FBB08A7-BA4C-4794-AC9C-CA5F65BC9B0A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0FBB08A7-BA4C-4794-AC9C-CA5F65BC9B0A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0FBB08A7-BA4C-4794-AC9C-CA5F65BC9B0A}.Release|x64.ActiveCfg = Release|Any CPU
+		{0FBB08A7-BA4C-4794-AC9C-CA5F65BC9B0A}.Release|x64.Build.0 = Release|Any CPU
+		{0FBB08A7-BA4C-4794-AC9C-CA5F65BC9B0A}.Release|x86.ActiveCfg = Release|Any CPU
+		{0FBB08A7-BA4C-4794-AC9C-CA5F65BC9B0A}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -128,6 +142,7 @@ Global
 		{83B96052-5951-4418-A10D-D00F5F92CDE7} = {3FF18ABD-26B6-424C-A5D6-D94DE018EF48}
 		{A302B0F0-822F-4C37-9D04-018291626C7E} = {7F591A4E-A298-4DA5-86F3-A976395D2B87}
 		{05F89C27-B8C7-46E1-B758-E677A69CA758} = {7F591A4E-A298-4DA5-86F3-A976395D2B87}
+		{0FBB08A7-BA4C-4794-AC9C-CA5F65BC9B0A} = {3FF18ABD-26B6-424C-A5D6-D94DE018EF48}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {2F70442E-984F-4DFB-BF55-32D453FDB942}

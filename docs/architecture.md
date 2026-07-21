@@ -8,9 +8,10 @@ Oceana is three deployable/shared pieces plus a planned front end:
 
 | Component | Project | Role |
 |-----------|---------|------|
-| **Protocol** | [`Oceana.Protocol`](../src/Oceana.Protocol) | Shared library defining the OCAP wire format. Referenced by both server and agent so they share one definition of the header. No dependencies on Windows/NAudio/ASP.NET. |
-| **Agent** | [`Oceana.Agent.Windows`](../src/Oceana.Agent.Windows) | Runs on a playback machine. Listens for a connection, receives an audio stream, and plays it to the local default output device. |
-| **Server** | [`Oceana.Server`](../src/Oceana.Server) | Central control plane. Manages a registry of agents and streams audio out to them. Exposes a REST + SignalR API. |
+| **Protocol** | [`Oceana.Protocol`](../src/Oceana.Protocol) | Shared library defining the OCAP binary wire format (the audio handshake header). No dependencies on Windows/NAudio/ASP.NET. |
+| **Contracts** | [`Oceana.Contracts`](../src/Oceana.Contracts) | Shared DTOs for the agent↔server SignalR control plane (registration, devices, routing). Referenced by both server and agent. |
+| **Agent** | [`Oceana.Agent.Windows`](../src/Oceana.Agent.Windows) | Runs on a playback machine. Listens for audio, opens an outbound control connection to the server to self-register and receive routing, then de-interleaves and plays channel subsets across one or more devices. |
+| **Server** | [`Oceana.Server`](../src/Oceana.Server) | Central control plane. Tracks self-registered agents, pushes their routing, and streams audio to them. Exposes a REST + SignalR API. |
 | **Front end** *(planned)* | — | A React app that will drive the server's REST API and subscribe to SignalR for live status. Not yet built. |
 
 ## The connection model (important)
@@ -20,9 +21,9 @@ The direction of the network connection is deliberately **inverted** from what p
 - The **agent is a TCP listener**. It binds `0.0.0.0:8090` (all interfaces) and waits.
 - The **server is the TCP client**. When told to stream to an agent, it **dials out** to that agent's `host:port`, sends a handshake header, then pushes audio.
 
-So "the server manages the agents connected to it" really means "the server manages the agents **it** connects out to." The server keeps a registry of agent endpoints (added via its REST API) and opens an outbound connection per stream.
+For **control**, the direction is the opposite: the **agent dials the server**, opening a persistent SignalR connection to `/hubs/agents-control` on startup. Over it the agent **self-registers** (reporting its devices and audio port) and receives routing pushes. The server derives the agent's audio host from that control connection — so it knows where to dial for audio, with **no manual registration**.
 
-> **Why this way?** It keeps the agent dead simple and firewall-friendly on the playback side (no inbound discovery/registration protocol on the agent), and it lets the server decide when audio flows. The trade-off — the server must be told each agent's address — is handled by the API-managed registry (see [server.md](./server.md)).
+> **Why split control and data this way?** Audio stays a dumb, firewall-simple TCP push the server initiates; control is an outbound agent connection, which is NAT-friendly and gives the server live presence + self-discovery. The server owns *when* audio flows and *how* it's routed; the agent owns playback. (See [server.md](./server.md#agent-control-plane).)
 
 ## End-to-end data flow
 
@@ -31,26 +32,31 @@ flowchart LR
     UI["React front end<br/>(planned)"]
     subgraph Server["Oceana.Server (Web API)"]
         REST["REST endpoints<br/>/api/agents/*"]
-        HUB["SignalR hub<br/>/hubs/agents"]
+        HUB["Status hub<br/>/hubs/agents"]
+        CTRL["Control hub<br/>/hubs/agents-control"]
         REG["Agent registry<br/>(in-memory)"]
         MGR["AudioStreamManager<br/>+ ToneGenerator"]
     end
     subgraph Agent["Oceana.Agent.Windows"]
+        CONN["Control connection<br/>(SignalR client)"]
         LIS["TCP listener<br/>0.0.0.0:8090"]
-        PLAY["Playback pipeline<br/>(NAudio WaveOut)"]
+        PLAY["ChannelRouter →<br/>WASAPI outputs"]
     end
-    SPK["Default speakers"]
+    DEV["One or more<br/>output devices"]
 
     UI -->|HTTP| REST
     HUB -->|status push| UI
     REST --> REG
     REST --> MGR
+    CONN -->|register / status| CTRL
+    CTRL -->|SetRouting| CONN
+    CTRL --> REG
     MGR -->|"TCP + OCAP header, then raw PCM"| LIS
     MGR -->|status changes| HUB
-    LIS --> PLAY --> SPK
+    LIS --> PLAY --> DEV
 ```
 
-The audio path is **server → agent**; the control path is **front end ↔ server** (REST out, SignalR status back). The agent never talks to the front end directly.
+Two planes: the **data plane** is audio, **server → agent** over TCP; the **control plane** is **agent → server** over SignalR (self-register + routing pushes) plus **front end ↔ server** (REST + status hub). The agent and front end never talk directly.
 
 ### Starting a stream (sequence)
 
@@ -61,14 +67,17 @@ sequenceDiagram
     participant A as Agent (listener)
     participant Spk as Speakers
 
-    UI->>S: POST /api/agents (host, port)
-    S-->>UI: 201 Created (AgentInfo, status=Idle)
-    S-->>UI: SignalR AgentChanged
+    A->>S: SignalR connect + Register(devices, audioPort)
+    S-->>A: current routing
+    S-->>UI: SignalR AgentChanged (connected)
 
-    UI->>S: POST /api/agents/{id}/stream (frequency)
+    UI->>S: PUT /api/agents/{id}/routing
+    S->>A: SetRouting (applies next stream)
+
+    UI->>S: POST /api/agents/{id}/stream (channels, frequency)
     S->>A: TCP connect host:8090
     Note over S: status → Connecting
-    S->>A: OCAP header (PCM, 48kHz, 2ch, 16-bit)
+    S->>A: OCAP header (PCM, 48kHz, N ch, 16-bit)
     Note over S: status → Streaming
     S-->>UI: 202 Accepted + SignalR AgentChanged
     loop ~20 ms chunks, real-time paced
@@ -97,8 +106,9 @@ The server is organised by **feature (vertical slice)** rather than by technical
 
 | Term | Meaning |
 |------|---------|
-| **Agent** | A playback endpoint (`Oceana.Agent.Windows`) that receives and plays an audio stream. Acts as the TCP *listener*. |
-| **Server** | The control plane (`Oceana.Server`) that manages agents and streams audio to them. Acts as the TCP *client*. |
+| **Agent** | A playback endpoint (`Oceana.Agent.Windows`) that plays audio. It's the audio TCP *listener* and the control-plane SignalR *client* (dials the server). |
+| **Server** | The control plane (`Oceana.Server`) that tracks agents, pushes routing, and streams audio. It's the audio TCP *client* and hosts the control + status hubs. |
+| **Control plane / data plane** | Control = agent↔server SignalR (registration, routing, status). Data = the server→agent TCP audio stream. |
 | **OCAP** | "Oceana Audio Protocol" — the wire format: a fixed 16-byte handshake header followed by raw PCM. See [protocol.md](./protocol.md). |
 | **Pre-roll** | The amount of audio the agent buffers (400 ms) before it starts playing, to absorb network jitter. |
 | **REPR** | Request–Endpoint–Response — the FastEndpoints pattern where each endpoint is its own class. |

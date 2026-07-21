@@ -15,13 +15,13 @@ src/Oceana.Server/
 │       ├── AgentRegistry.cs
 │       ├── ListAgents/            # one folder per endpoint (REPR)
 │       ├── GetAgent/
-│       ├── RegisterAgent/         # endpoint + request + validator
+│       ├── SetRouting/            # PUT /agents/{id}/routing (endpoint + request + validator)
 │       ├── RemoveAgent/
 │       ├── StartStream/           # endpoint + request + response + validator
 │       └── StopStream/
 └── Infrastructure/                # shared technical services (not a feature)
     ├── Streaming/                 # tone generation + TCP streaming
-    └── Realtime/                  # SignalR hub + notifier
+    └── Realtime/                  # status hub + agent-control hub + notifier/commander
 ```
 
 - **`Features/Agents/`** is the only slice today. Each use-case is a folder holding its FastEndpoints endpoint, its request/response DTOs, and its FluentValidation validator — everything for that operation in one place.
@@ -35,17 +35,17 @@ Each endpoint is its own class deriving from `Endpoint<TRequest[,TResponse]>` (o
 
 - **Global route prefix `api`** — set in `UseFastEndpoints` (so `Get("/agents")` → `/api/agents`).
 - **Secure by default:** FastEndpoints requires authorization unless an endpoint calls `AllowAnonymous()`. There is **no auth yet**, so every endpoint currently calls `AllowAnonymous()`. (See [roadmap.md](./roadmap.md).)
-- **Validation:** FluentValidation `Validator<TRequest>` classes are auto-discovered; failures return `400` with a structured error body — no handler wiring. Example: [`RegisterAgentValidator`](../src/Oceana.Server/Features/Agents/RegisterAgent/RegisterAgentValidator.cs), [`StartStreamValidator`](../src/Oceana.Server/Features/Agents/StartStream/StartStreamValidator.cs).
+- **Validation:** FluentValidation `Validator<TRequest>` classes are auto-discovered; failures return `400` with a structured error body — no handler wiring. Example: [`StartStreamValidator`](../src/Oceana.Server/Features/Agents/StartStream/StartStreamValidator.cs), [`SetRoutingValidator`](../src/Oceana.Server/Features/Agents/SetRouting/SetRoutingValidator.cs).
 
-The six endpoints and their status codes are tabulated in [api.md](./api.md).
+The endpoints and their status codes are tabulated in [api.md](./api.md).
 
 ## Agent registry
 
 [`IAgentRegistry`](../src/Oceana.Server/Features/Agents/IAgentRegistry.cs) / [`AgentRegistry`](../src/Oceana.Server/Features/Agents/AgentRegistry.cs):
 
 - In-memory, thread-safe (`ConcurrentDictionary<Guid, AgentInfo>`), registered as a **singleton**.
-- API-managed: agents are added/removed via REST (`POST`/`DELETE /api/agents`). Nothing is persisted — the registry is empty on restart.
-- Tracks each agent's [`AgentStatus`](../src/Oceana.Server/Features/Agents/AgentStatus.cs): `Idle (0) → Connecting (1) → Streaming (2)`, or `Faulted (3)` on error, back to `Idle` when a stream stops.
+- **Agent-driven, not API-managed:** agents self-register over the control connection (see [Agent control plane](#agent-control-plane)). `RegisterOrUpdate` upserts by the agent's own id (preserving routing/status); `MarkOffline` flips `Connected` on disconnect, ignoring a stale drop after the agent has already reconnected. Nothing is persisted — empty on restart.
+- Tracks per agent: `Connected` (control-connection state), reported `Devices`, desired `Routing`, and [`AgentStatus`](../src/Oceana.Server/Features/Agents/AgentStatus.cs) (`Idle → Connecting → Streaming`, or `Faulted`, back to `Idle`).
 
 ## Tone streaming
 
@@ -65,7 +65,17 @@ The connection is abstracted behind [`IAgentConnection`](../src/Oceana.Server/In
 
 [`AgentStatusHub`](../src/Oceana.Server/Infrastructure/Realtime/AgentStatusHub.cs) is a strongly-typed hub (`Hub<IAgentStatusClient>`) mapped at **`/hubs/agents`**. The server pushes changes through [`IStatusNotifier`](../src/Oceana.Server/Infrastructure/Realtime/IStatusNotifier.cs) → [`SignalRStatusNotifier`](../src/Oceana.Server/Infrastructure/Realtime/SignalRStatusNotifier.cs) whenever an agent is registered, changes status, or is removed. Client methods: `AgentChanged(AgentInfo)` and `AgentRemoved(Guid)`. Enums are serialised **as strings**. Contract detail in [api.md](./api.md).
 
-> SignalR isn't yet exercised by a live client; the broadcast path is unit-tested and the hub is mapped. A React client will consume it.
+> The status hub isn't yet exercised by a browser client (a React app will consume it); the agent-control hub below *is* exercised by the live agent.
+
+## Agent control plane
+
+Agents connect to [`AgentControlHub`](../src/Oceana.Server/Infrastructure/Realtime/AgentControlHub.cs) (`Hub<IAgentControlClient>`) at **`/hubs/agents-control`**:
+
+- **`Register(AgentRegistration)`** — the agent calls this on connect (and reconnect). The hub joins the agent to a **group keyed by its id** (robust across reconnects), upserts the registry (host from the connection's remote IP, port + devices from the agent), notifies the front end, and returns the agent's stored `AgentRouting`.
+- **`OnDisconnectedAsync`** — marks the agent offline (via `MarkOffline`) and notifies the front end.
+- **Pushing routing:** [`IAgentRoutingCommander`](../src/Oceana.Server/Infrastructure/Realtime/IAgentRoutingCommander.cs) → [`SignalRRoutingCommander`](../src/Oceana.Server/Infrastructure/Realtime/SignalRRoutingCommander.cs) sends `SetRouting` to `Clients.Group(agentId)` — a no-op if the agent is offline. `PUT /api/agents/{id}/routing` stores the routing then pushes it; the agent applies it on its **next stream**.
+
+Shared DTOs (`AgentRegistration`, `AgentRouting`, `AudioDevice`, `IAgentControlClient`) live in [`Oceana.Contracts`](../src/Oceana.Contracts). The agent side is in [agent.md](./agent.md#server-control-connection).
 
 ## Cross-cutting setup ([`Program.cs`](../src/Oceana.Server/Program.cs))
 

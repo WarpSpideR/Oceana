@@ -16,6 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Oceana.Contracts\Oceana.Contracts.csproj" />
     <ProjectReference Include="..\Oceana.Protocol\Oceana.Protocol.csproj" />
   </ItemGroup>
 

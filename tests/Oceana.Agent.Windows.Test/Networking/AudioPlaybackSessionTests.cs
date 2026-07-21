@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using NAudio.Wave;
-using Oceana.Agent.Windows.Configuration;
 using Oceana.Agent.Windows.Playback;
+using Oceana.Contracts;
 using Oceana.Protocol;
 using Serilog;
 
@@ -21,7 +21,7 @@ public class AudioPlaybackSessionTests
         var factory = Substitute.For<IAudioPlayerFactory>();
         factory.Create(Arg.Any<string?>()).Returns(player);
 
-        var session = new AudioPlaybackSession(factory, Array.Empty<AudioOutputOptions>(), Substitute.For<ILogger>());
+        var session = new AudioPlaybackSession(factory, Array.Empty<AudioOutput>(), Substitute.For<ILogger>());
         await session.RunAsync(stream, CancellationToken.None);
 
         factory.Received(1).Create(null); // default device
@@ -51,8 +51,8 @@ public class AudioPlaybackSessionTests
 
         var outputs = new[]
         {
-            new AudioOutputOptions { Device = "A", Channels = [0, 1] },
-            new AudioOutputOptions { Device = "B", Channels = [2, 3] },
+            new AudioOutput("A", [0, 1]),
+            new AudioOutput("B", [2, 3]),
         };
         var session = new AudioPlaybackSession(factory, outputs, Substitute.For<ILogger>());
 
@@ -68,7 +68,7 @@ public class AudioPlaybackSessionTests
         var audio = BuildFrames([[1, 2], [3, 4]]);
         using var stream = CreateStream(new AudioStreamHeader(AudioEncoding.Pcm, 2, 48000, 16), audio);
         var factory = Substitute.For<IAudioPlayerFactory>();
-        var outputs = new[] { new AudioOutputOptions { Device = "A", Channels = [0, 2] } }; // channel 2 invalid for 2 channels
+        var outputs = new[] { new AudioOutput("A", [0, 2]) }; // channel 2 invalid for 2 channels
         var session = new AudioPlaybackSession(factory, outputs, Substitute.For<ILogger>());
 
         var act = () => session.RunAsync(stream, CancellationToken.None);
@@ -85,7 +85,7 @@ public class AudioPlaybackSessionTests
         await cancellation.CancelAsync();
 
         var factory = Substitute.For<IAudioPlayerFactory>();
-        var session = new AudioPlaybackSession(factory, Array.Empty<AudioOutputOptions>(), Substitute.For<ILogger>());
+        var session = new AudioPlaybackSession(factory, Array.Empty<AudioOutput>(), Substitute.For<ILogger>());
 
         var act = () => session.RunAsync(stream, cancellation.Token);
 

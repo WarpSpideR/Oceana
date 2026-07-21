@@ -50,6 +50,7 @@ public static class Program
         builder.Services.AddSingleton<IAgentRegistry, AgentRegistry>();
         builder.Services.AddSingleton<IAgentConnectionFactory, TcpAgentConnectionFactory>();
         builder.Services.AddSingleton<IStatusNotifier, SignalRStatusNotifier>();
+        builder.Services.AddSingleton<IAgentRoutingCommander, SignalRRoutingCommander>();
         builder.Services.AddSingleton<IAudioStreamManager, AudioStreamManager>();
 
         var app = builder.Build();
@@ -68,6 +69,7 @@ public static class Program
             config.Serializer.Options.Converters.Add(new JsonStringEnumConverter());
         });
         app.MapHub<AgentStatusHub>("/hubs/agents");
+        app.MapHub<AgentControlHub>("/hubs/agents-control");
 
         app.Run();
     }

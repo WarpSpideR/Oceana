@@ -9,8 +9,9 @@
 - **OCAP protocol** — fixed 16-byte handshake header + raw-PCM streaming ([protocol.md](./protocol.md)).
 - **Windows agent** — TCP listener that de-interleaves an N-channel stream and plays channel subsets across **one or more output devices** (WASAPI), with a pre-roll jitter buffer and backpressure ([agent.md](./agent.md)).
 - **Server** — FastEndpoints Web API with an in-memory agent registry, SignalR status broadcasting, OpenAPI, and CORS; streams a **generated sine test tone** to agents with real-time pacing ([server.md](./server.md), [api.md](./api.md)).
-- **Verified end-to-end**: register an agent → start a stream → the agent plays it with a healthy buffer → stop returns to idle.
-- **21 unit tests** on a modern xUnit v3 / MTP stack.
+- **Server control plane** — agents **self-register** over a persistent SignalR connection (`/hubs/agents-control`) reporting their devices; the server pushes **channel→device routing**, applied on the agent's next stream ([server.md](./server.md#agent-control-plane), [agent.md](./agent.md#server-control-connection)).
+- **Verified end-to-end**: agent self-registers with devices → push routing → 4-channel stream splits across two devices per the server config → disconnect flips `connected`.
+- **35 unit tests** on a modern xUnit v3 / MTP stack.
 
 **Not yet built:**
 
@@ -34,11 +35,12 @@
 
 ## Decisions already made (and why)
 
-- **Agent listens, server dials out.** Keeps the agent simple and firewall-friendly; the server owns when audio flows. Trade-off (server must know agent addresses) is handled by the API-managed registry. ([architecture.md](./architecture.md#the-connection-model-important))
+- **Agent listens for audio; agent dials the server for control.** The server dials the agent to stream audio, while the agent opens an outbound SignalR *control* connection to self-register and receive routing — so the server learns the agent's audio host from that connection (no manual registration). ([architecture.md](./architecture.md#the-connection-model-important))
+- **Server-driven routing, applied next stream, in-memory.** The server is the source of truth for each agent's channel→device routing and pushes it over the control connection; it takes effect on the agent's next stream. Desired routing (and the registry) are in-memory and reset on server restart. ([server.md](./server.md#agent-control-plane))
 - **Raw PCM for v1** (no codec). Trivially correct; compression is a later, additive OCAP version.
 - **`WaveOut` (WinMM) over WASAPI for v1.** Simplest reliable playback path; WASAPI/exclusive-mode is a later option if lower latency is needed.
 - **Pre-roll jitter buffer (400 ms)** + real-time stopwatch pacing on the server. Chosen after observing that starting on an empty buffer, or pacing with a fixed `Task.Delay`, produced audible stutter. ([agent.md](./agent.md#playback-pipeline), [server.md](./server.md#tone-streaming))
-- **Multi-device output is agent-configured, WASAPI, drift-tolerant.** The agent maps its local devices to channel ranges in `appsettings.json` (server just sends N channels); independent device clocks are accepted (separate zones), not phase-locked. ([agent.md](./agent.md#multiple-output-devices))
+- **Multi-device output is WASAPI, drift-tolerant, server-routed.** The channel→device map is set from the server (see above); independent device clocks are accepted (separate zones), not phase-locked. ([agent.md](./agent.md#multiple-output-devices))
 - **Vertical slices + FastEndpoints (REPR).** Feature-first structure; one class per endpoint.
 - **xUnit v3 + MTP and AwesomeAssertions.** Modern runner; AwesomeAssertions avoids FluentAssertions v8's commercial licence. ([development.md](./development.md#notable-packagetooling-decisions-and-why))
 

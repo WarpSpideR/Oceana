@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Oceana.Contracts;
 using Oceana.Protocol;
 using Oceana.Server.Features.Agents;
 using Oceana.Server.Infrastructure.Realtime;
@@ -19,7 +20,7 @@ public class AudioStreamManagerTests
     public void StopStream_ReturnsFalse_WhenNotStreaming()
     {
         var registry = new AgentRegistry();
-        var agent = registry.Register("a", "127.0.0.1", 8090);
+        var agent = registry.RegisterOrUpdate(new AgentRegistration(Guid.NewGuid(), "a", 8090, Array.Empty<AudioDevice>()), "127.0.0.1", "conn-1");
         var manager = CreateManager(registry, out _, out _);
 
         manager.StopStream(agent.Id).Should().BeFalse();
@@ -29,7 +30,7 @@ public class AudioStreamManagerTests
     public async Task TryStartStream_WritesValidHeaderAndReportsStreaming()
     {
         var registry = new AgentRegistry();
-        var agent = registry.Register("a", "127.0.0.1", 8090);
+        var agent = registry.RegisterOrUpdate(new AgentRegistration(Guid.NewGuid(), "a", 8090, Array.Empty<AudioDevice>()), "127.0.0.1", "conn-1");
         var manager = CreateManager(registry, out var capture, out var notifier);
 
         manager.TryStartStream(agent.Id, new ToneOptions { Frequency = 440.0 }).Should().BeTrue();
@@ -57,7 +58,7 @@ public class AudioStreamManagerTests
     public async Task TryStartStream_ReturnsFalse_WhenAlreadyStreaming()
     {
         var registry = new AgentRegistry();
-        var agent = registry.Register("a", "127.0.0.1", 8090);
+        var agent = registry.RegisterOrUpdate(new AgentRegistration(Guid.NewGuid(), "a", 8090, Array.Empty<AudioDevice>()), "127.0.0.1", "conn-1");
         var manager = CreateManager(registry, out _, out _);
 
         manager.TryStartStream(agent.Id, new ToneOptions()).Should().BeTrue();

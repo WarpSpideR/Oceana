@@ -48,25 +48,19 @@ The incoming stream is one interleaved N-channel PCM stream, but NAudio has **no
 
 ## Multiple output devices
 
-An agent can split one N-channel stream across several devices — e.g. receive 4 channels and play channels 0–1 on one stereo device and 2–3 on another. Routing is **configured on the agent** (the server just sends N channels) via `appsettings.json`:
-
-```json
-{
-  "Audio": {
-    "Outputs": [
-      { "Device": "Speakers (High Definition Audio Device)", "Channels": [0, 1] },
-      { "Device": "5 - LG HDR 4K (AMD High Definition Audio Device)", "Channels": [2, 3] }
-    ]
-  }
-}
-```
-
-- `Device` matches a WASAPI **friendly name** or **id**; omit it for the system default.
-- `Channels` is the ordered list of source channels routed to that device.
-- **Empty `Outputs` ⇒ backward-compatible default:** the whole stream plays to the default device.
-- Run `--list-devices` to print each render device's name and id for the config.
+An agent can split one N-channel stream across several devices — e.g. receive 4 channels and play channels 0–1 on one device and 2–3 on another. **Routing is set from the server**, not locally: the front end / API calls `PUT /api/agents/{id}/routing`, the server stores it and pushes it to the agent over the [control connection](#server-control-connection), and the agent applies it on its **next stream**. Each output maps a device (WASAPI friendly name or id; omit for the default) to an ordered list of source channels; with no routing set, the whole stream plays to the default device. Run `--list-devices` to see the device names/ids the server offers.
 
 > **Synchronisation caveat.** Each device runs on its **own clock**, so independent devices drift over time and start with a small skew — fine for separate *zones*, not for phase-locked same-room surround. With one shared source and global backpressure, the slowest device paces the read loop, so a much faster one can eventually underrun (silence-padded). True cross-device sync is out of scope (see [roadmap.md](./roadmap.md)).
+
+## Server control connection
+
+A server is **required**. On startup the agent opens a persistent SignalR connection ([`ServerControlConnection`](../src/Oceana.Agent.Windows/Networking/ServerControlConnection.cs)) to `{ServerUrl}/hubs/agents-control` and:
+
+- **Self-registers** — sends an `AgentRegistration` (a stable, locally-persisted agent id in an `agent-id` file, the machine name, the audio port, and its render devices) and stores the routing the server returns.
+- **Receives routing** — `On<AgentRouting>("SetRouting", …)` updates the thread-safe [`RoutingStore`](../src/Oceana.Agent.Windows/Playback/RoutingStore.cs); the listener reads `routingStore.Current` at the start of each connection (next-stream apply).
+- **Reconnects** — a jittered initial-connect retry loop plus `WithAutomaticReconnect`, and it **re-registers on every reconnect** (rejoining its server-side group). Until the first registration completes, routing defaults to all-channels-to-default-device.
+
+`ServerUrl` comes from `appsettings.json`; if it is missing the agent logs a fatal error and exits.
 
 ## The `IAudioPlayer` seam
 
@@ -83,7 +77,8 @@ The project uses `NAudio` **3.0.0-preview.18**, which differs from 2.x in ways t
 
 ## Configuration & running
 
-- **Output routing:** `appsettings.json` `Audio:Outputs` (see [above](#multiple-output-devices)).
+- **Server (required):** `appsettings.json` `ServerUrl` — the base server URL; the agent appends `/hubs/agents-control`.
+- **Output routing:** managed from the server (see [above](#multiple-output-devices)), not in `appsettings.json`.
 - **List devices:** `--list-devices` prints render devices and exits.
 - **Port:** `--port <n>` (1–65535); defaults to **8090** (`DefaultPort`). Invalid values log a warning and fall back to the default. See [`Program.cs`](../src/Oceana.Agent.Windows/Program.cs).
 - **Shutdown:** Ctrl+C (`Console.CancelKeyPress`) triggers cooperative cancellation and a clean stop.
@@ -102,8 +97,10 @@ See [development.md](./development.md) for building and testing.
 
 | File | Purpose |
 |------|---------|
-| [`Program.cs`](../src/Oceana.Agent.Windows/Program.cs) | Entry point: Serilog, config load, `--list-devices`, `--port`, Ctrl+C, starts the listener. |
-| [`Configuration/AudioOptions.cs`](../src/Oceana.Agent.Windows/Configuration/AudioOptions.cs) | Bound `Audio:Outputs` routing configuration. |
+| [`Program.cs`](../src/Oceana.Agent.Windows/Program.cs) | Entry point: Serilog, `ServerUrl` config, agent-id, `--list-devices`, `--port`, Ctrl+C, starts the control connection + listener. |
+| [`Configuration/ServerOptions.cs`](../src/Oceana.Agent.Windows/Configuration/ServerOptions.cs) | Bound `ServerUrl` (required). |
+| [`Networking/ServerControlConnection.cs`](../src/Oceana.Agent.Windows/Networking/ServerControlConnection.cs) | SignalR control client: self-register, receive routing, reconnect/re-register. |
+| [`Playback/RoutingStore.cs`](../src/Oceana.Agent.Windows/Playback/RoutingStore.cs) | Thread-safe current routing (server-pushed), read per connection. |
 | [`Networking/AudioAgentListener.cs`](../src/Oceana.Agent.Windows/Networking/AudioAgentListener.cs) | TCP accept loop, socket tuning. |
 | [`Networking/AudioPlaybackSession.cs`](../src/Oceana.Agent.Windows/Networking/AudioPlaybackSession.cs) | Header read, output plan, per-output buffering, pre-roll, pump, logging. |
 | [`Playback/ChannelRouter.cs`](../src/Oceana.Agent.Windows/Playback/ChannelRouter.cs) | De-interleave + fan-out to per-output buffers. |

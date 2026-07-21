@@ -1,3 +1,5 @@
+using Oceana.Contracts;
+
 namespace Oceana.Server.Features.Agents;
 
 /// <summary>
@@ -6,13 +8,21 @@ namespace Oceana.Server.Features.Agents;
 public interface IAgentRegistry
 {
     /// <summary>
-    /// Registers a new agent and assigns it an identifier.
+    /// Records an agent's self-registration, creating or updating its entry and marking it connected.
+    /// Existing routing and streaming status are preserved across re-registration.
     /// </summary>
-    /// <param name="name">The human-readable name of the agent.</param>
-    /// <param name="host">The host name or IP address on which the agent is listening.</param>
-    /// <param name="port">The TCP port on which the agent is listening.</param>
-    /// <returns>The newly registered agent.</returns>
-    AgentInfo Register(string name, string host, int port);
+    /// <param name="registration">The details the agent reported.</param>
+    /// <param name="host">The host name or IP address derived from the control connection.</param>
+    /// <param name="connectionId">The control connection identifier.</param>
+    /// <returns>The stored agent.</returns>
+    AgentInfo RegisterOrUpdate(AgentRegistration registration, string host, string connectionId);
+
+    /// <summary>
+    /// Marks the agent for a dropped control connection offline, unless it has already reconnected.
+    /// </summary>
+    /// <param name="connectionId">The control connection identifier that dropped.</param>
+    /// <returns>The updated agent when it was marked offline; otherwise null.</returns>
+    AgentInfo? MarkOffline(string connectionId);
 
     /// <summary>
     /// Returns every registered agent.
@@ -35,11 +45,19 @@ public interface IAgentRegistry
     bool Remove(Guid id);
 
     /// <summary>
-    /// Updates the status of an agent.
+    /// Updates the streaming status of an agent.
     /// </summary>
     /// <param name="id">The identifier of the agent.</param>
     /// <param name="status">The new status.</param>
     /// <param name="lastError">The message describing the most recent fault, or null.</param>
     /// <returns>The updated agent, or null when no agent has the given identifier.</returns>
     AgentInfo? UpdateStatus(Guid id, AgentStatus status, string? lastError = null);
+
+    /// <summary>
+    /// Sets the desired routing for an agent.
+    /// </summary>
+    /// <param name="id">The identifier of the agent.</param>
+    /// <param name="routing">The routing to store.</param>
+    /// <returns>The updated agent, or null when no agent has the given identifier.</returns>
+    AgentInfo? SetDesiredRouting(Guid id, AgentRouting routing);
 }

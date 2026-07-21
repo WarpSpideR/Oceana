@@ -12,6 +12,7 @@
 | Project | TFM | Purpose |
 |---------|-----|---------|
 | [`src/Oceana.Protocol`](../src/Oceana.Protocol) | `net10.0` | Shared OCAP wire format ([protocol.md](./protocol.md)). |
+| [`src/Oceana.Contracts`](../src/Oceana.Contracts) | `net10.0` | Shared control-plane DTOs (registration, routing) for the agent↔server SignalR channel. |
 | [`src/Oceana.Agent.Windows`](../src/Oceana.Agent.Windows) | `net10.0-windows10.0.19041.0` | Playback agent ([agent.md](./agent.md)). |
 | [`src/Oceana.Server`](../src/Oceana.Server) | `net10.0` | Web API server ([server.md](./server.md)). |
 | [`tests/Oceana.Protocol.Tests`](../tests/Oceana.Protocol.Tests) | `net10.0` | Protocol tests. |

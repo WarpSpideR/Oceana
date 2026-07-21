@@ -34,8 +34,16 @@ public static class Program
                 return;
             }
 
+            var serverOptions = LoadServerOptions();
+            if (string.IsNullOrWhiteSpace(serverOptions.ServerUrl))
+            {
+                logger.Fatal("No 'ServerUrl' is configured in appsettings.json; the agent requires a server. Exiting.");
+                return;
+            }
+
             var port = ParsePort(args, logger);
-            var audioOptions = LoadAudioOptions();
+            var agentId = LoadOrCreateAgentId();
+            var routingStore = new RoutingStore();
 
             using var cancellation = new CancellationTokenSource();
             Console.CancelKeyPress += (_, eventArgs) =>
@@ -45,8 +53,11 @@ public static class Program
                 cancellation.Cancel();
             };
 
+            await using var control = new ServerControlConnection(serverOptions.ServerUrl, agentId, port, deviceResolver, routingStore, logger);
+            control.Start(cancellation.Token);
+
             var playerFactory = new WasapiAudioPlayerFactory(deviceResolver);
-            var listener = new AudioAgentListener(port, playerFactory, audioOptions.Outputs.ToList(), logger);
+            var listener = new AudioAgentListener(port, playerFactory, routingStore, logger);
             await listener.RunAsync(cancellation.Token);
         }
         catch (Exception ex)
@@ -59,16 +70,29 @@ public static class Program
         }
     }
 
-    private static AudioOptions LoadAudioOptions()
+    private static ServerOptions LoadServerOptions()
     {
         var configuration = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: true)
             .Build();
 
-        var options = new AudioOptions();
-        configuration.GetSection(AudioOptions.SectionName).Bind(options);
+        var options = new ServerOptions();
+        configuration.Bind(options);
         return options;
+    }
+
+    private static Guid LoadOrCreateAgentId()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "agent-id");
+        if (File.Exists(path) && Guid.TryParse(File.ReadAllText(path).Trim(), out var existing))
+        {
+            return existing;
+        }
+
+        var id = Guid.NewGuid();
+        File.WriteAllText(path, id.ToString());
+        return id;
     }
 
     private static void ListDevices(IAudioDeviceResolver resolver, ILogger logger)
