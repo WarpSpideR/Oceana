@@ -14,6 +14,7 @@ public sealed class StartStreamValidator : Validator<StartStreamRequest>
     public StartStreamValidator()
     {
         RuleFor(x => x.Frequency).InclusiveBetween(20d, 20000d);
+        RuleFor(x => x.Channels).InclusiveBetween(1, 8);
         RuleFor(x => x.DurationSeconds!.Value)
             .InclusiveBetween(0.1, 3600d)
             .When(x => x.DurationSeconds.HasValue);

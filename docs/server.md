@@ -51,10 +51,10 @@ The six endpoints and their status codes are tabulated in [api.md](./api.md).
 
 The current audio source is a **generated sine test tone** (proves the full pipeline without external inputs).
 
-- [`ToneGenerator`](../src/Oceana.Server/Infrastructure/Streaming/ToneGenerator.cs) — interleaved **16-bit PCM stereo** sine at **48 000 Hz** (`SampleRate=48000`, `Channels=2`, `BitsPerSample=16`, `Amplitude=0.25`). Default frequency **440 Hz**.
+- [`ToneGenerator`](../src/Oceana.Server/Infrastructure/Streaming/ToneGenerator.cs) — interleaved **16-bit PCM** sine at **48 000 Hz** (`SampleRate=48000`, `BitsPerSample=16`, `Amplitude=0.25`), with a configurable **channel count** (1–8) and a **distinct frequency per channel** (channel n at `frequency × (n+1)`) so each channel is identifiable. Default base frequency **440 Hz**, **2** channels.
 - [`AudioStreamManager`](../src/Oceana.Server/Infrastructure/Streaming/AudioStreamManager.cs) — orchestrates a stream to one agent:
   1. Resolve the agent, open a connection via [`IAgentConnectionFactory`](../src/Oceana.Server/Infrastructure/Streaming/IAgentConnectionFactory.cs) (`status → Connecting`).
-  2. Write the OCAP header (PCM, 48 kHz, 2ch, 16-bit), then `status → Streaming`.
+  2. Write the OCAP header (PCM, 48 kHz, requested channel count, 16-bit), then `status → Streaming`.
   3. Pump **~20 ms chunks** (`ChunkMilliseconds=20` → 960 frames / 3840 bytes) until cancelled or the optional duration elapses; `status → Idle` (or `Faulted`).
 - **Real-time pacing:** a `Stopwatch`-based schedule sleeps only while the wall clock is *behind* the audio timeline. This avoids the drift of a fixed `Task.Delay` per chunk (which, due to Windows' ~15 ms timer granularity, under-produces and slowly starves the agent's buffer).
 - **One stream per agent:** tracked in a `ConcurrentDictionary` keyed by agent id; a second start returns `409 Conflict`.

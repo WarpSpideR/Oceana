@@ -28,6 +28,7 @@ public sealed class StartStreamEndpoint(IAgentRegistry registry, IAudioStreamMan
         var options = new ToneOptions
         {
             Frequency = req.Frequency,
+            Channels = req.Channels,
             Duration = req.DurationSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : null,
         };
 

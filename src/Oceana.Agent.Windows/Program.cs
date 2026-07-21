@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Configuration;
+using Oceana.Agent.Windows.Configuration;
 using Oceana.Agent.Windows.Networking;
 using Oceana.Agent.Windows.Playback;
 using Serilog;
@@ -24,9 +26,18 @@ public static class Program
 
         try
         {
-            var port = ParsePort(args, logger);
-            using var cancellation = new CancellationTokenSource();
+            var deviceResolver = new WasapiAudioDeviceResolver();
 
+            if (args.Any(argument => string.Equals(argument, "--list-devices", StringComparison.OrdinalIgnoreCase)))
+            {
+                ListDevices(deviceResolver, logger);
+                return;
+            }
+
+            var port = ParsePort(args, logger);
+            var audioOptions = LoadAudioOptions();
+
+            using var cancellation = new CancellationTokenSource();
             Console.CancelKeyPress += (_, eventArgs) =>
             {
                 eventArgs.Cancel = true;
@@ -34,7 +45,8 @@ public static class Program
                 cancellation.Cancel();
             };
 
-            var listener = new AudioAgentListener(port, new WaveOutAudioPlayerFactory(), logger);
+            var playerFactory = new WasapiAudioPlayerFactory(deviceResolver);
+            var listener = new AudioAgentListener(port, playerFactory, audioOptions.Outputs.ToList(), logger);
             await listener.RunAsync(cancellation.Token);
         }
         catch (Exception ex)
@@ -44,6 +56,26 @@ public static class Program
         finally
         {
             logger.Dispose();
+        }
+    }
+
+    private static AudioOptions LoadAudioOptions()
+    {
+        var configuration = new ConfigurationBuilder()
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.json", optional: true)
+            .Build();
+
+        var options = new AudioOptions();
+        configuration.GetSection(AudioOptions.SectionName).Bind(options);
+        return options;
+    }
+
+    private static void ListDevices(IAudioDeviceResolver resolver, ILogger logger)
+    {
+        foreach (var device in resolver.ListRenderDevices())
+        {
+            logger.Information("Render device: {Name} [{Id}]", device.Name, device.Id);
         }
     }
 

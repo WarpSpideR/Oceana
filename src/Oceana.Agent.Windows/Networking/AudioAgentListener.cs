@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using Oceana.Agent.Windows.Configuration;
 using Oceana.Agent.Windows.Playback;
 using Serilog;
 
@@ -7,7 +8,7 @@ namespace Oceana.Agent.Windows.Networking;
 
 /// <summary>
 /// Listens for incoming server connections on all network interfaces and plays each connection's
-/// audio stream to the local output device, handling one connection at a time.
+/// audio stream to the configured output device(s), handling one connection at a time.
 /// </summary>
 public sealed class AudioAgentListener
 {
@@ -18,18 +19,21 @@ public sealed class AudioAgentListener
 
     private readonly int port;
     private readonly IAudioPlayerFactory playerFactory;
+    private readonly IReadOnlyList<AudioOutputOptions> outputOptions;
     private readonly ILogger logger;
 
     /// <summary>
     /// Initialises a new instance of the <see cref="AudioAgentListener"/> class.
     /// </summary>
     /// <param name="port">The TCP port to listen on.</param>
-    /// <param name="playerFactory">The factory used to create an output player for each session.</param>
+    /// <param name="playerFactory">The factory used to create output players for each session.</param>
+    /// <param name="outputOptions">The configured output routing passed to each session.</param>
     /// <param name="logger">The logger used to report listener activity.</param>
-    public AudioAgentListener(int port, IAudioPlayerFactory playerFactory, ILogger logger)
+    public AudioAgentListener(int port, IAudioPlayerFactory playerFactory, IReadOnlyList<AudioOutputOptions> outputOptions, ILogger logger)
     {
         this.port = port;
         this.playerFactory = playerFactory;
+        this.outputOptions = outputOptions;
         this.logger = logger;
     }
 
@@ -73,7 +77,7 @@ public sealed class AudioAgentListener
 
         try
         {
-            var session = new AudioPlaybackSession(playerFactory, logger);
+            var session = new AudioPlaybackSession(playerFactory, outputOptions, logger);
             await using var stream = client.GetStream();
             await session.RunAsync(stream, cancellationToken);
             logger.Information("Server {Remote} disconnected.", remote);

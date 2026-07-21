@@ -12,9 +12,14 @@ public sealed class StartStreamRequest
     public Guid Id { get; set; }
 
     /// <summary>
-    /// Gets or sets the tone frequency, in hertz.
+    /// Gets or sets the base tone frequency, in hertz. Each channel plays a distinct multiple of this.
     /// </summary>
     public double Frequency { get; set; } = 440.0;
+
+    /// <summary>
+    /// Gets or sets the number of channels to stream.
+    /// </summary>
+    public int Channels { get; set; } = 2;
 
     /// <summary>
     /// Gets or sets the optional duration, in seconds; when null the tone plays until it is stopped.

@@ -45,9 +45,9 @@ Validation: `name` and `host` non-empty; `port` in `1..65535` (defaults to `8090
 
 ### `StartStreamRequest`
 ```json
-{ "frequency": 440, "durationSeconds": 5 }
+{ "frequency": 440, "channels": 4, "durationSeconds": 5 }
 ```
-`frequency` (Hz) in `20..20000` (default `440`); `durationSeconds` optional — omit/`null` to play until stopped, otherwise `0.1..3600`. `id` comes from the route.
+`frequency` (Hz) in `20..20000` (default `440`); `channels` in `1..8` (default `2`) — each channel is generated at a distinct multiple of `frequency`; `durationSeconds` optional — omit/`null` to play until stopped, otherwise `0.1..3600`. `id` comes from the route.
 
 ### `StartStreamResponse`
 ```json

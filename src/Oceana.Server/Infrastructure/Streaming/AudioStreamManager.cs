@@ -103,9 +103,9 @@ public sealed class AudioStreamManager : IAudioStreamManager, IAsyncDisposable
 
     private static async Task PumpToneAsync(Stream stream, ToneOptions options, CancellationToken cancellationToken)
     {
-        var generator = new ToneGenerator(options.Frequency);
+        var generator = new ToneGenerator(options.Frequency, options.Channels);
         var framesPerChunk = ToneGenerator.SampleRate * ChunkMilliseconds / 1000;
-        var chunk = new byte[framesPerChunk * ToneGenerator.BytesPerFrame];
+        var chunk = new byte[framesPerChunk * generator.BytesPerFrame];
         var totalFrames = options.Duration is { } duration
             ? (long)(duration.TotalSeconds * ToneGenerator.SampleRate)
             : (long?)null;
@@ -122,7 +122,7 @@ public sealed class AudioStreamManager : IAudioStreamManager, IAsyncDisposable
 
             var written = generator.Fill(chunk);
             await stream.WriteAsync(chunk.AsMemory(0, written), cancellationToken);
-            framesSent += written / ToneGenerator.BytesPerFrame;
+            framesSent += written / generator.BytesPerFrame;
 
             // Real-time pacing: sleep only until wall-clock catches up to the audio timeline,
             // so cumulative production tracks real time without the drift of a fixed per-chunk delay.
@@ -145,15 +145,16 @@ public sealed class AudioStreamManager : IAudioStreamManager, IAsyncDisposable
 
             var header = new AudioStreamHeader(
                 AudioEncoding.Pcm,
-                ToneGenerator.Channels,
+                options.Channels,
                 ToneGenerator.SampleRate,
                 ToneGenerator.BitsPerSample);
             await header.WriteToAsync(connection.Stream, cancellationToken);
 
             await UpdateStatusAsync(agent.Id, AgentStatus.Streaming, null);
             logger.LogInformation(
-                "Streaming {Frequency} Hz tone to agent {Agent} ({Host}:{Port}).",
+                "Streaming {Frequency} Hz tone ({Channels} channel(s)) to agent {Agent} ({Host}:{Port}).",
                 options.Frequency,
+                options.Channels,
                 agent.Name,
                 agent.Host,
                 agent.Port);

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using NAudio.Wave;
+using Oceana.Agent.Windows.Configuration;
 using Oceana.Agent.Windows.Playback;
 using Oceana.Protocol;
 using Serilog;
@@ -7,8 +8,9 @@ using Serilog;
 namespace Oceana.Agent.Windows.Networking;
 
 /// <summary>
-/// Handles a single connected server: reads the handshake header, then streams the incoming raw
-/// audio to the local output device until the connection closes or playback is cancelled.
+/// Handles a single connected server: reads the handshake header, then de-interleaves the incoming
+/// audio and streams each configured channel subset to its output device until the connection closes
+/// or playback is cancelled.
 /// </summary>
 public sealed class AudioPlaybackSession
 {
@@ -21,16 +23,19 @@ public sealed class AudioPlaybackSession
     private static readonly TimeSpan BufferLogInterval = TimeSpan.FromSeconds(1);
 
     private readonly IAudioPlayerFactory playerFactory;
+    private readonly IReadOnlyList<AudioOutputOptions> outputOptions;
     private readonly ILogger logger;
 
     /// <summary>
     /// Initialises a new instance of the <see cref="AudioPlaybackSession"/> class.
     /// </summary>
-    /// <param name="playerFactory">The factory used to create the output player for this session.</param>
+    /// <param name="playerFactory">The factory used to create output players for this session.</param>
+    /// <param name="outputOptions">The configured output routing; when empty, the whole stream plays to the default device.</param>
     /// <param name="logger">The logger used to report session progress.</param>
-    public AudioPlaybackSession(IAudioPlayerFactory playerFactory, ILogger logger)
+    public AudioPlaybackSession(IAudioPlayerFactory playerFactory, IReadOnlyList<AudioOutputOptions> outputOptions, ILogger logger)
     {
         this.playerFactory = playerFactory;
+        this.outputOptions = outputOptions;
         this.logger = logger;
     }
 
@@ -51,30 +56,101 @@ public sealed class AudioPlaybackSession
             header.Channels,
             header.BitsPerSample);
 
-        var buffer = new BufferedWaveProvider(waveFormat, TimeSpan.FromSeconds(PlaybackBufferSeconds));
-
-        using var player = playerFactory.Create();
-        player.Init(buffer);
+        var plans = BuildPlans(header.Channels);
+        var outputs = new List<ActiveOutput>(plans.Count);
 
         try
         {
-            await PumpAsync(stream, buffer, player, cancellationToken);
+            foreach (var plan in plans)
+            {
+                var format = CreateFormat(header, plan.SourceChannels.Count);
+                var buffer = new BufferedWaveProvider(format, TimeSpan.FromSeconds(PlaybackBufferSeconds));
+                var player = playerFactory.Create(plan.DeviceId);
+                player.Init(buffer);
+                outputs.Add(new ActiveOutput(plan, buffer, player));
+                logger.Information(
+                    "Output {Device} plays source channels [{Channels}].",
+                    plan.DeviceId ?? "(default device)",
+                    string.Join(", ", plan.SourceChannels));
+            }
+
+            var router = new ChannelRouter(
+                waveFormat.Channels,
+                waveFormat.BitsPerSample / 8,
+                outputs.Select(o => new ChannelRoute(o.Plan.SourceChannels, o.Buffer)).ToList());
+
+            await PumpAsync(stream, router, outputs, cancellationToken);
         }
         finally
         {
-            player.Stop();
+            foreach (var output in outputs)
+            {
+                output.Player.Stop();
+                output.Player.Dispose();
+            }
         }
     }
 
-    private static async Task WaitForCapacityAsync(BufferedWaveProvider buffer, int required, CancellationToken cancellationToken)
+    private static async Task WaitForCapacityAsync(IReadOnlyList<ActiveOutput> outputs, CancellationToken cancellationToken)
     {
-        while ((buffer.BufferLength - buffer.BufferedBytes) < required)
+        while (HasFullBuffer(outputs))
         {
             await Task.Delay(BackpressureDelay, cancellationToken);
         }
     }
 
-    private async Task PumpAsync(Stream stream, BufferedWaveProvider buffer, IAudioPlayer player, CancellationToken cancellationToken)
+    private static bool HasFullBuffer(IReadOnlyList<ActiveOutput> outputs)
+    {
+        foreach (var output in outputs)
+        {
+            if ((output.Buffer.BufferLength - output.Buffer.BufferedBytes) < ReadBufferSize)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static WaveFormat CreateFormat(AudioStreamHeader header, int channels)
+    {
+        return header.Encoding == AudioEncoding.IeeeFloat
+            ? WaveFormat.CreateIeeeFloatWaveFormat(header.SampleRate, channels)
+            : new WaveFormat(header.SampleRate, header.BitsPerSample, channels);
+    }
+
+    private IReadOnlyList<OutputPlan> BuildPlans(int sourceChannels)
+    {
+        if (outputOptions.Count == 0)
+        {
+            var allChannels = Enumerable.Range(0, sourceChannels).ToArray();
+            return new[] { new OutputPlan(null, allChannels) };
+        }
+
+        var plans = new List<OutputPlan>(outputOptions.Count);
+        foreach (var option in outputOptions)
+        {
+            if (option.Channels.Length == 0)
+            {
+                throw new InvalidOperationException($"Output '{option.Device ?? "(default device)"}' has no channels configured.");
+            }
+
+            foreach (var channel in option.Channels)
+            {
+                if (channel < 0 || channel >= sourceChannels)
+                {
+                    throw new InvalidOperationException(
+                        $"Configured channel {channel} is out of range for the {sourceChannels}-channel stream.");
+                }
+            }
+
+            plans.Add(new OutputPlan(option.Device, option.Channels));
+        }
+
+        return plans;
+    }
+
+    private async Task PumpAsync(Stream stream, ChannelRouter router, IReadOnlyList<ActiveOutput> outputs, CancellationToken cancellationToken)
     {
         var readBuffer = new byte[ReadBufferSize];
         var logStopwatch = Stopwatch.StartNew();
@@ -88,44 +164,72 @@ public sealed class AudioPlaybackSession
                 break;
             }
 
-            await WaitForCapacityAsync(buffer, read, cancellationToken);
-            buffer.AddSamples(readBuffer, 0, read);
+            await WaitForCapacityAsync(outputs, cancellationToken);
+            router.Route(readBuffer.AsSpan(0, read));
 
-            if (!playing && buffer.BufferedDuration >= PreRollDuration)
+            if (!playing && outputs[0].Buffer.BufferedDuration >= PreRollDuration)
             {
-                StartPlayback(player, buffer, "Pre-roll complete");
+                StartPlayback(outputs, "Pre-roll complete");
                 playing = true;
             }
 
             if (playing && logStopwatch.Elapsed >= BufferLogInterval)
             {
-                LogBufferLevel(buffer);
+                LogBufferLevels(outputs);
                 logStopwatch.Restart();
             }
         }
 
         if (!playing)
         {
-            StartPlayback(player, buffer, "Stream ended before the pre-roll target was reached");
+            StartPlayback(outputs, "Stream ended before the pre-roll target was reached");
         }
     }
 
-    private void StartPlayback(IAudioPlayer player, BufferedWaveProvider buffer, string reason)
+    private void StartPlayback(IReadOnlyList<ActiveOutput> outputs, string reason)
     {
-        player.Play();
-        logger.Information("{Reason}; starting playback with {BufferedMilliseconds} ms buffered.", reason, (long)buffer.BufferedDuration.TotalMilliseconds);
+        foreach (var output in outputs)
+        {
+            output.Player.Play();
+        }
+
+        logger.Information(
+            "{Reason}; starting playback on {OutputCount} output(s) with {BufferedMilliseconds} ms buffered.",
+            reason,
+            outputs.Count,
+            (long)outputs[0].Buffer.BufferedDuration.TotalMilliseconds);
     }
 
-    private void LogBufferLevel(BufferedWaveProvider buffer)
+    private void LogBufferLevels(IReadOnlyList<ActiveOutput> outputs)
     {
-        var bufferedMilliseconds = (long)buffer.BufferedDuration.TotalMilliseconds;
-        if (bufferedMilliseconds <= LowWaterMilliseconds)
+        foreach (var output in outputs)
         {
-            logger.Warning("Playback buffer running low: {BufferedMilliseconds} ms buffered (risk of underrun).", bufferedMilliseconds);
+            var bufferedMilliseconds = (long)output.Buffer.BufferedDuration.TotalMilliseconds;
+            var device = output.Plan.DeviceId ?? "(default device)";
+            if (bufferedMilliseconds <= LowWaterMilliseconds)
+            {
+                logger.Warning("Output {Device} buffer running low: {BufferedMilliseconds} ms (risk of underrun).", device, bufferedMilliseconds);
+            }
+            else
+            {
+                logger.Information("Output {Device} buffer level: {BufferedMilliseconds} ms.", device, bufferedMilliseconds);
+            }
         }
-        else
+    }
+
+    private sealed class ActiveOutput
+    {
+        public ActiveOutput(OutputPlan plan, BufferedWaveProvider buffer, IAudioPlayer player)
         {
-            logger.Information("Playback buffer level: {BufferedMilliseconds} ms buffered.", bufferedMilliseconds);
+            Plan = plan;
+            Buffer = buffer;
+            Player = player;
         }
+
+        public OutputPlan Plan { get; }
+
+        public BufferedWaveProvider Buffer { get; }
+
+        public IAudioPlayer Player { get; }
     }
 }

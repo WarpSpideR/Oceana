@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+
 namespace Oceana.Server.Infrastructure.Streaming;
 
 public class ToneGeneratorTests
@@ -5,19 +7,19 @@ public class ToneGeneratorTests
     [Fact]
     public void Fill_WritesWholeFramesOnly()
     {
-        var generator = new ToneGenerator(440.0);
-        var buffer = new byte[(10 * ToneGenerator.BytesPerFrame) + 3];
+        var generator = new ToneGenerator(440.0, 2);
+        var buffer = new byte[(10 * generator.BytesPerFrame) + 3];
 
         var written = generator.Fill(buffer);
 
-        written.Should().Be(10 * ToneGenerator.BytesPerFrame);
+        written.Should().Be(10 * generator.BytesPerFrame);
     }
 
     [Fact]
     public void Fill_ProducesNonSilentAudio()
     {
-        var generator = new ToneGenerator(440.0);
-        var buffer = new byte[ToneGenerator.SampleRate / 10 * ToneGenerator.BytesPerFrame];
+        var generator = new ToneGenerator(440.0, 2);
+        var buffer = new byte[generator.BytesPerFrame * (ToneGenerator.SampleRate / 10)];
 
         generator.Fill(buffer);
 
@@ -25,16 +27,26 @@ public class ToneGeneratorTests
     }
 
     [Fact]
-    public void Fill_AdvancesPhaseAcrossCalls()
+    public void Constructor_SetsChannelCountAndFrameSize()
     {
-        var generator = new ToneGenerator(440.0);
-        var first = new byte[100 * ToneGenerator.BytesPerFrame];
-        var second = new byte[100 * ToneGenerator.BytesPerFrame];
+        var generator = new ToneGenerator(440.0, 4);
 
-        generator.Fill(first);
-        generator.Fill(second);
+        generator.Channels.Should().Be(4);
+        generator.BytesPerFrame.Should().Be(4 * (ToneGenerator.BitsPerSample / 8));
+    }
 
-        // Different phase windows of a sine wave should not be byte-identical.
-        second.Should().NotEqual(first);
+    [Fact]
+    public void Fill_ProducesADistinctFrequencyPerChannel()
+    {
+        var generator = new ToneGenerator(440.0, 2);
+        var buffer = new byte[generator.BytesPerFrame * 100];
+
+        generator.Fill(buffer);
+
+        // At a non-zero position, channel 0 (440 Hz) and channel 1 (880 Hz) produce different samples.
+        var frame = 50 * generator.BytesPerFrame;
+        var channel0 = BinaryPrimitives.ReadInt16LittleEndian(buffer.AsSpan(frame));
+        var channel1 = BinaryPrimitives.ReadInt16LittleEndian(buffer.AsSpan(frame + 2));
+        channel0.Should().NotBe(channel1);
     }
 }
