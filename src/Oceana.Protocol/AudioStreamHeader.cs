@@ -1,7 +1,6 @@
 using System.Buffers.Binary;
-using NAudio.Wave;
 
-namespace Oceana.Agent.Windows.Protocol;
+namespace Oceana.Protocol;
 
 /// <summary>
 /// The fixed-size handshake header that the server sends once, immediately after connecting,
@@ -135,20 +134,5 @@ public readonly struct AudioStreamHeader
         var buffer = new byte[Size];
         Write(buffer);
         await stream.WriteAsync(buffer, cancellationToken);
-    }
-
-    /// <summary>
-    /// Maps this header to the equivalent NAudio <see cref="WaveFormat"/>.
-    /// </summary>
-    /// <returns>The wave format that describes the incoming samples.</returns>
-    /// <exception cref="InvalidDataException">The encoding is not supported.</exception>
-    public WaveFormat ToWaveFormat()
-    {
-        return Encoding switch
-        {
-            AudioEncoding.Pcm => new WaveFormat(SampleRate, BitsPerSample, Channels),
-            AudioEncoding.IeeeFloat => WaveFormat.CreateIeeeFloatWaveFormat(SampleRate, Channels),
-            _ => throw new InvalidDataException($"Unsupported audio encoding '{Encoding}'."),
-        };
     }
 }

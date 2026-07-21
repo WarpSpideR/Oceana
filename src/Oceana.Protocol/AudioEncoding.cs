@@ -1,4 +1,4 @@
-namespace Oceana.Agent.Windows.Protocol;
+namespace Oceana.Protocol;
 
 /// <summary>
 /// Identifies how the audio samples that follow the handshake header are encoded on the wire.
