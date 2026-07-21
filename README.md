@@ -7,6 +7,12 @@
 
 Oceana is an open source fully configurable whole-home audio broadcasting server currently under development by Maurice Davidson.
 
+## Documentation
+
+Developer, architecture, and API documentation lives in [`docs/`](docs/README.md).
+
+> **Note:** the code today is an early prototype of the streaming pipeline — a shared protocol library, a Windows playback agent, and a server that streams a generated test tone to agents. The roadmap below is the long-term vision; see [`docs/roadmap.md`](docs/roadmap.md) for what is actually implemented so far.
+
 ## Roadmap
 
 This is the planned list of features and will be updated as they become available.

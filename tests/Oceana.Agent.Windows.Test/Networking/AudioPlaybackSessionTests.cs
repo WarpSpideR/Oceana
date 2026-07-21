@@ -1,10 +1,9 @@
 using NAudio.Wave;
-using Oceana.Agent.Windows.Networking;
 using Oceana.Agent.Windows.Playback;
-using Oceana.Agent.Windows.Protocol;
+using Oceana.Protocol;
 using Serilog;
 
-namespace Oceana.Agent.Windows.Test.Networking;
+namespace Oceana.Agent.Windows.Networking;
 
 public class AudioPlaybackSessionTests
 {

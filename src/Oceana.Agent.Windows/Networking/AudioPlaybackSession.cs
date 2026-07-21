@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using NAudio.Wave;
 using Oceana.Agent.Windows.Playback;
-using Oceana.Agent.Windows.Protocol;
+using Oceana.Protocol;
 using Serilog;
 
 namespace Oceana.Agent.Windows.Networking;

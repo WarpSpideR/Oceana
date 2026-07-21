@@ -1,10 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <RootNamespace>Oceana.Agent.Windows</RootNamespace>
+    <RootNamespace>Oceana.Protocol</RootNamespace>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
@@ -16,15 +16,10 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="NSubstitute" Version="6.0.0" />
-    <PackageReference Include="NSubstitute.Analyzers.CSharp" Version="1.0.17">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Oceana.Agent.Windows\Oceana.Agent.Windows.csproj" />
+    <ProjectReference Include="..\..\src\Oceana.Protocol\Oceana.Protocol.csproj" />
   </ItemGroup>
 
 </Project>
