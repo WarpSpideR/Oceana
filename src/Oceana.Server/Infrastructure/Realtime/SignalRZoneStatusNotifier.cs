@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 using Oceana.Server.Features.Zones;
+using Oceana.Server.Infrastructure.Streaming;
 
 namespace Oceana.Server.Infrastructure.Realtime;
 
@@ -29,5 +30,11 @@ public sealed class SignalRZoneStatusNotifier : IZoneStatusNotifier
     public Task NotifyZoneRemovedAsync(Guid zoneId)
     {
         return this.hub.Clients.All.ZoneRemoved(zoneId);
+    }
+
+    /// <inheritdoc/>
+    public Task NotifyZonePlaybackChangedAsync(ZonePlaybackState state)
+    {
+        return this.hub.Clients.All.ZonePlaybackChanged(state);
     }
 }

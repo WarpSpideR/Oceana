@@ -19,6 +19,8 @@ export interface ZoneInfo {
   name: string
   /** The devices assigned to the zone. */
   devices: ZoneDevice[]
+  /** Playback volume applied to audio streamed to the zone, 0.0 (silent)–1.0 (full). */
+  volume: number
 }
 
 /** Body of a create-zone request. */
@@ -67,5 +69,21 @@ export interface BroadcastResult {
   /** The agents the message is playing to. */
   targeted: BroadcastTarget[]
   /** The agents that were skipped, with reasons. */
+  skipped: BroadcastSkip[]
+}
+
+/** A zone's current playback state (nothing playing when `playing` is false). */
+export interface ZonePlaybackState {
+  /** The zone. */
+  zoneId: string
+  /** Whether audio is currently playing to the zone. */
+  playing: boolean
+  /** The source name (e.g. file name) when playing. */
+  sourceName: string | null
+  /** When playback started (ISO 8601) when playing. */
+  startedAtUtc: string | null
+  /** The agents being played to. */
+  targeted: BroadcastTarget[]
+  /** The agents skipped when playback started, with reasons. */
   skipped: BroadcastSkip[]
 }

@@ -16,8 +16,6 @@ public sealed class ZoneBroadcaster : IZoneBroadcaster
     // routing to arrive before dialing.
     private static readonly TimeSpan SettleDelay = TimeSpan.FromMilliseconds(250);
 
-    private static readonly int[] MonoChannel = new[] { 0 };
-
     private readonly IAgentRegistry registry;
     private readonly IAudioStreamManager streamManager;
     private readonly IAgentRoutingCommander commander;
@@ -45,40 +43,18 @@ public sealed class ZoneBroadcaster : IZoneBroadcaster
     /// <inheritdoc/>
     public ZoneBroadcastResult PlanAndStart(ZoneInfo zone, ReadOnlyMemory<byte> pcm, StreamFormat format)
     {
-        var targeted = new List<BroadcastTarget>();
-        var skipped = new List<BroadcastSkip>();
+        var classification = ZoneTargeting.Classify(registry, streamManager, zone);
 
-        foreach (var group in zone.Devices.GroupBy(device => device.AgentId))
+        foreach (var target in classification.Targets)
         {
-            var agentId = group.Key;
-            var deviceIds = group.Select(device => device.DeviceId).Distinct().ToArray();
-            var agent = registry.Get(agentId);
-
-            if (agent is null || !agent.Connected)
-            {
-                skipped.Add(new BroadcastSkip(agentId, agent?.Name ?? agentId.ToString(), BroadcastSkipReason.Offline));
-                continue;
-            }
-
-            if (streamManager.IsStreaming(agentId))
-            {
-                skipped.Add(new BroadcastSkip(agentId, agent.Name, BroadcastSkipReason.Busy));
-                continue;
-            }
-
-            var reported = new HashSet<string>(agent.Devices.Select(device => device.Id), StringComparer.Ordinal);
-            var activeDeviceIds = deviceIds.Where(reported.Contains).ToArray();
-            if (activeDeviceIds.Length == 0)
-            {
-                skipped.Add(new BroadcastSkip(agentId, agent.Name, BroadcastSkipReason.NoActiveDevices));
-                continue;
-            }
-
-            targeted.Add(new BroadcastTarget(agentId, agent.Name, activeDeviceIds.Length));
-            _ = Task.Run(() => StreamToAgentAsync(agent, activeDeviceIds, pcm, format));
+            _ = Task.Run(() => StreamToAgentAsync(target.Agent, target.DeviceIds, pcm, format, zone.Volume));
         }
 
-        return new ZoneBroadcastResult(zone.Id, targeted, skipped);
+        var targeted = classification.Targets
+            .Select(target => new BroadcastTarget(target.Agent.Id, target.Agent.Name, target.DeviceIds.Count))
+            .ToArray();
+
+        return new ZoneBroadcastResult(zone.Id, targeted, classification.Skips);
     }
 
     /// <summary>
@@ -89,22 +65,25 @@ public sealed class ZoneBroadcaster : IZoneBroadcaster
     /// <param name="deviceIds">The agent's device ids to play on.</param>
     /// <param name="pcm">The PCM message.</param>
     /// <param name="format">The PCM format.</param>
+    /// <param name="volume">The zone's volume (0.0–1.0) to apply to the message.</param>
     /// <returns>A task that completes when the message has been streamed and routing restored.</returns>
     public async Task StreamToAgentAsync(
         AgentInfo agent,
         IReadOnlyList<string> deviceIds,
         ReadOnlyMemory<byte> pcm,
-        StreamFormat format)
+        StreamFormat format,
+        double volume)
     {
         var priorRouting = registry.Get(agent.Id)?.Routing ?? new AgentRouting(Array.Empty<AudioOutput>());
+        var channels = Enumerable.Range(0, format.Channels).ToArray();
         var broadcastRouting = new AgentRouting(
-            deviceIds.Select(id => new AudioOutput(id, MonoChannel)).ToArray());
+            deviceIds.Select(id => new AudioOutput(id, channels)).ToArray());
 
         try
         {
             await commander.PushRoutingAsync(agent.Id, broadcastRouting);
             await Task.Delay(SettleDelay);
-            await streamManager.TryStreamPcmAsync(agent.Id, pcm, format, CancellationToken.None);
+            await streamManager.TryStreamPcmAsync(agent.Id, pcm, format, () => volume, CancellationToken.None);
         }
         catch (Exception ex)
         {

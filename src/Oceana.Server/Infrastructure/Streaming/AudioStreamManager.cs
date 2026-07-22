@@ -74,6 +74,7 @@ public sealed class AudioStreamManager : IAudioStreamManager, IAsyncDisposable
         Guid agentId,
         ReadOnlyMemory<byte> pcm,
         StreamFormat format,
+        Func<double> volume,
         CancellationToken cancellationToken)
     {
         var agent = registry.Get(agentId);
@@ -93,7 +94,7 @@ public sealed class AudioStreamManager : IAudioStreamManager, IAsyncDisposable
         state.Task = RunStreamAsync(
             agent,
             format.ToHeader(),
-            (stream, ct) => PumpBufferAsync(stream, pcm, format, ct),
+            (stream, ct) => PumpBufferAsync(stream, pcm, format, volume, ct),
             cancellation.Token);
 
         try
@@ -188,10 +189,13 @@ public sealed class AudioStreamManager : IAudioStreamManager, IAsyncDisposable
         Stream stream,
         ReadOnlyMemory<byte> pcm,
         StreamFormat format,
+        Func<double> volume,
         CancellationToken cancellationToken)
     {
         var framesPerChunk = format.SampleRate * ChunkMilliseconds / 1000;
         var chunkBytes = framesPerChunk * format.BytesPerFrame;
+        var canApplyGain = format is { Encoding: AudioEncoding.Pcm, BitsPerSample: 16 };
+        var scratch = canApplyGain ? new byte[chunkBytes] : Array.Empty<byte>();
 
         var clock = Stopwatch.StartNew();
         long framesSent = 0;
@@ -200,7 +204,21 @@ public sealed class AudioStreamManager : IAudioStreamManager, IAsyncDisposable
         while (offset < pcm.Length && !cancellationToken.IsCancellationRequested)
         {
             var take = Math.Min(chunkBytes, pcm.Length - offset);
-            await stream.WriteAsync(pcm.Slice(offset, take), cancellationToken);
+            var chunk = pcm.Slice(offset, take);
+
+            // Read the gain once per chunk so live volume changes apply within ~20 ms. Skip the
+            // copy entirely at (near-)unity so full-volume playback stays zero-copy.
+            var gain = canApplyGain ? volume() : 1.0;
+            if (gain >= 0.999)
+            {
+                await stream.WriteAsync(chunk, cancellationToken);
+            }
+            else
+            {
+                PcmGain.ApplyInt16(chunk.Span, scratch.AsSpan(0, take), Math.Clamp(gain, 0.0, 1.0));
+                await stream.WriteAsync(scratch.AsMemory(0, take), cancellationToken);
+            }
+
             offset += take;
             framesSent += take / format.BytesPerFrame;
 

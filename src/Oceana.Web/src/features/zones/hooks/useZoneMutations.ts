@@ -1,7 +1,15 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { broadcastToZone, createZone, removeZone, updateZone } from '../api/zonesApi'
+import {
+  broadcastToZone,
+  createZone,
+  playToZone,
+  removeZone,
+  setZoneVolume,
+  stopZonePlayback,
+  updateZone,
+} from '../api/zonesApi'
 import { zoneKeys } from '../api/zoneKeys'
-import type { CreateZoneRequest, UpdateZoneRequest } from '../types'
+import type { CreateZoneRequest, UpdateZoneRequest, ZoneInfo, ZonePlaybackState } from '../types'
 
 /**
  * Mutation for creating a zone. The server broadcasts `ZoneChanged` on success,
@@ -43,6 +51,25 @@ export function useZoneMutations(zoneId: string) {
 }
 
 /**
+ * Mutation for setting a zone's volume. On success the returned zone is written into the caches so
+ * the slider and list reflect it immediately (the hub `ZoneChanged` also keeps it live).
+ * @param zoneId The target zone id.
+ * @returns The set-volume mutation (takes a 0–1 volume).
+ */
+export function useSetZoneVolume(zoneId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (volume: number) => setZoneVolume(zoneId, volume),
+    onSuccess: (zone) => {
+      queryClient.setQueryData<ZoneInfo>(zoneKeys.detail(zoneId), zone)
+      queryClient.setQueryData<ZoneInfo[]>(zoneKeys.list(), (previous) =>
+        previous?.map((z) => (z.id === zone.id ? zone : z)),
+      )
+    },
+  })
+}
+
+/**
  * Mutation for broadcasting a recorded message to a zone. A broadcast doesn't change zone state,
  * so there is no cache invalidation.
  * @param zoneId The target zone id.
@@ -52,4 +79,33 @@ export function useBroadcastToZone(zoneId: string) {
   return useMutation({
     mutationFn: (wav: Blob) => broadcastToZone(zoneId, wav),
   })
+}
+
+/**
+ * Mutations for starting and stopping file playback to a zone. On success the returned/known
+ * playback state is written into the cache; the hub keeps it live thereafter.
+ * @param zoneId The target zone id.
+ * @returns The play and stop mutations.
+ */
+export function useZonePlaybackMutations(zoneId: string) {
+  const queryClient = useQueryClient()
+
+  const playMutation = useMutation({
+    mutationFn: ({ wav, name }: { wav: Blob; name: string }) => playToZone(zoneId, wav, name),
+    onSuccess: (state) => {
+      queryClient.setQueryData<ZonePlaybackState | null>(
+        zoneKeys.playback(zoneId),
+        state.playing ? state : null,
+      )
+    },
+  })
+
+  const stopMutation = useMutation({
+    mutationFn: () => stopZonePlayback(zoneId),
+    onSuccess: () => {
+      queryClient.setQueryData<ZonePlaybackState | null>(zoneKeys.playback(zoneId), null)
+    },
+  })
+
+  return { playMutation, stopMutation }
 }

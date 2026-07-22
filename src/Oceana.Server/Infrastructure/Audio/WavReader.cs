@@ -6,12 +6,12 @@ using Oceana.Server.Infrastructure.Streaming;
 namespace Oceana.Server.Infrastructure.Audio;
 
 /// <summary>
-/// Parses uncompressed PCM WAV (RIFF/WAVE) audio. Only the format broadcasts use — mono,
-/// 48 kHz, 16-bit PCM — is accepted, so the server needs no audio codec.
+/// Parses uncompressed PCM WAV (RIFF/WAVE) audio. Only the format the agent can play —
+/// mono or stereo, 48 kHz, 16-bit PCM — is accepted, so the server needs no audio codec.
 /// </summary>
 public static class WavReader
 {
-    private const int RequiredChannels = 1;
+    private const int MaxChannels = 2;
     private const int RequiredSampleRate = 48000;
     private const int RequiredBitsPerSample = 16;
     private const ushort WaveFormatPcm = 1;
@@ -80,22 +80,23 @@ public static class WavReader
         }
 
         if (audioFormat != WaveFormatPcm
-            || channels != RequiredChannels
+            || channels < 1
+            || channels > MaxChannels
             || sampleRate != RequiredSampleRate
             || bitsPerSample != RequiredBitsPerSample)
         {
-            error = "Only mono, 48 kHz, 16-bit PCM audio is supported.";
+            error = "Only mono or stereo, 48 kHz, 16-bit PCM audio is supported.";
             return false;
         }
 
         if (pcm.Length == 0)
         {
-            error = "The recording contains no audio.";
+            error = "The audio contains no samples.";
             return false;
         }
 
         audio = new WavAudio(
-            new StreamFormat(AudioEncoding.Pcm, RequiredChannels, RequiredSampleRate, RequiredBitsPerSample),
+            new StreamFormat(AudioEncoding.Pcm, channels, RequiredSampleRate, RequiredBitsPerSample),
             pcm);
         error = null;
         return true;

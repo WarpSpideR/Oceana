@@ -110,7 +110,7 @@ public class ZoneBroadcasterTests
         var agent = Agent(agentId, connected: true, "d1", "d2") with { Routing = priorRouting };
         registry.Get(agentId).Returns(agent);
 
-        await CreateBroadcaster().StreamToAgentAsync(agent, new[] { "d1", "d2" }, Pcm, Format);
+        await CreateBroadcaster().StreamToAgentAsync(agent, new[] { "d1", "d2" }, Pcm, Format, 1.0);
 
         await commander.Received(1).PushRoutingAsync(
             agentId,
@@ -124,6 +124,7 @@ public class ZoneBroadcasterTests
             agentId,
             Arg.Any<ReadOnlyMemory<byte>>(),
             Format,
+            Arg.Any<Func<double>>(),
             Arg.Any<CancellationToken>());
 
         await commander.Received(1).PushRoutingAsync(agentId, priorRouting);

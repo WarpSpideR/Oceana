@@ -19,4 +19,10 @@ public sealed record ZoneInfo
     /// Gets the devices assigned to the zone.
     /// </summary>
     public IReadOnlyList<ZoneDevice> Devices { get; init; } = Array.Empty<ZoneDevice>();
+
+    /// <summary>
+    /// Gets the playback volume applied to audio streamed to the zone, from 0.0 (silent) to
+    /// 1.0 (full). Attenuation only.
+    /// </summary>
+    public double Volume { get; init; } = 1.0;
 }

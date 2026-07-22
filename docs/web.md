@@ -41,8 +41,8 @@ src/Oceana.Web/src/
         ├── types.ts        # ZoneInfo, ZoneDevice, BroadcastResult
         ├── api/            # zonesApi.ts (CRUD + broadcastToZone), zoneKeys.ts
         ├── hooks/          # useZones, useZone, useZoneMutations (+ useBroadcastToZone), useZoneHub, zoneCache
-        ├── audio/          # wav.ts (WAV encoder), useAudioRecorder (mic capture)
-        ├── components/     # ZonesTable, CreateZoneDialog, DevicePicker, BroadcastDialog
+        ├── audio/          # wav.ts (N-channel WAV encoder), useAudioRecorder (mic), decodeFileToPcm (file→48k stereo)
+        ├── components/     # ZonesTable, CreateZoneDialog, DevicePicker, BroadcastDialog, ZonePlaybackPanel, ZoneVolumeControl
         ├── zoneModel.ts    # pure device-selection + resolve-against-agents helpers
         └── pages/          # ZonesListPage, ZoneDetailPage
 ```
@@ -52,6 +52,12 @@ The app bar switches between the **Agents** and **Zones** sections; `app/Provide
 ### Broadcasting a message
 
 The zone detail page has a **Broadcast a message** card (enabled only when a zone device's agent is connected). `BroadcastDialog` uses `useAudioRecorder` — `getUserMedia` + `MediaRecorder` to capture (≤ 60 s), an `<audio>` element for preview, and re-record — then, on broadcast, `getWavBlob()` decodes the recording, down-mixes to mono and resamples to **48 kHz** via `OfflineAudioContext`, and `wav.ts` encodes a 16-bit PCM WAV. That blob is `POST`ed as `audio/wav` to `/api/zones/{id}/broadcast` (the explicit `Content-Type` is why binary upload needs no change to the shared `request` helper). The dialog shows the returned summary (agents played to / skipped). All browser media APIs live in the recorder hook so the rest of the UI stays testable; `wav.ts` is unit-tested directly.
+
+### Playing a file to a zone
+
+The zone detail page's **Play audio** card (`ZonePlaybackPanel`) lets the operator pick any audio file; `decodeFileToPcm` decodes it via `AudioContext.decodeAudioData` (so MP3/AAC/WAV/FLAC/OGG all work), resamples to **48 kHz stereo** through an `OfflineAudioContext`, and `wav.ts` encodes 16-bit PCM — the same browser pipeline as the mic, so the server needs no codec. The blob is `POST`ed to `/api/zones/{id}/play`. When playing, the card shows **now-playing** (source, target count, elapsed) and **Stop**; playback state is a `useZonePlayback` query seeded by `GET …/playback` and kept live by the hub's `ZonePlaybackChanged` event (written into the cache by `applyZonePlaybackChanged`). Play-once, stereo; the Play button is gated on a connected target agent like broadcast.
+
+The zone detail page also has a **Volume** card (`ZoneVolumeControl`): a MUI `Slider` (0–100%) whose `onChange` updates the label live and whose `onChangeCommitted` (release) calls `PUT …/volume` via `useSetZoneVolume` — so drags don't storm the server, and the level changes on release (the server applies the persisted volume live to any current playback). The value stays in sync across clients via the hub's `ZoneChanged`.
 
 ### Data flow
 

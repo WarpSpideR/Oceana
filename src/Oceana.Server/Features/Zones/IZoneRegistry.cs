@@ -36,6 +36,14 @@ public interface IZoneRegistry
     ZoneUpdateResult Update(Guid id, string name, IReadOnlyList<ZoneDevice> devices);
 
     /// <summary>
+    /// Sets a zone's playback volume (clamped to 0.0–1.0), preserving its name and devices.
+    /// </summary>
+    /// <param name="id">The identifier of the zone to update.</param>
+    /// <param name="volume">The volume, from 0.0 (silent) to 1.0 (full).</param>
+    /// <returns>The outcome of the update, carrying the updated zone on success.</returns>
+    ZoneUpdateResult SetVolume(Guid id, double volume);
+
+    /// <summary>
     /// Removes the zone with the given identifier.
     /// </summary>
     /// <param name="id">The identifier of the zone to remove.</param>

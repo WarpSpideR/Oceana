@@ -9,4 +9,6 @@ export const zoneKeys = {
   list: () => [...zoneKeys.all, 'list'] as const,
   /** Key for a single zone's detail query. */
   detail: (id: string) => [...zoneKeys.all, 'detail', id] as const,
+  /** Key for a single zone's playback state query. */
+  playback: (id: string) => [...zoneKeys.all, 'playback', id] as const,
 }

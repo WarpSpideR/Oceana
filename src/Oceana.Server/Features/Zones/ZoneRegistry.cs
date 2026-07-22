@@ -27,8 +27,9 @@ public sealed class ZoneRegistry : IZoneRegistry
         {
             foreach (var zone in state.Zones)
             {
-                this.zones[zone.Id] = zone;
-                this.namesToId[NameKey(zone.Name)] = zone.Id;
+                var loaded = zone with { Volume = Math.Clamp(zone.Volume, 0.0, 1.0) };
+                this.zones[loaded.Id] = loaded;
+                this.namesToId[NameKey(loaded.Name)] = loaded.Id;
             }
         }
     }
@@ -100,6 +101,25 @@ public sealed class ZoneRegistry : IZoneRegistry
             var updated = existing with { Name = trimmed, Devices = devices };
             this.zones[id] = updated;
             this.namesToId[key] = id;
+            this.Persist();
+            return ZoneUpdateResult.Success(updated);
+        }
+    }
+
+    /// <inheritdoc/>
+    public ZoneUpdateResult SetVolume(Guid id, double volume)
+    {
+        var clamped = Math.Clamp(volume, 0.0, 1.0);
+
+        lock (this.gate)
+        {
+            if (!this.zones.TryGetValue(id, out var existing))
+            {
+                return ZoneUpdateResult.NotFound;
+            }
+
+            var updated = existing with { Volume = clamped };
+            this.zones[id] = updated;
             this.Persist();
             return ZoneUpdateResult.Success(updated);
         }

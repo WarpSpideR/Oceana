@@ -83,16 +83,27 @@ The transport half of `AudioStreamManager` is source-agnostic: `RunStreamAsync(h
 
 ## Zone broadcast
 
-[`IZoneBroadcaster`](../src/Oceana.Server/Infrastructure/Streaming/IZoneBroadcaster.cs) / [`ZoneBroadcaster`](../src/Oceana.Server/Infrastructure/Streaming/ZoneBroadcaster.cs) plays a recorded PCM message (decoded from an uploaded WAV by [`WavReader`](../src/Oceana.Server/Infrastructure/Audio/WavReader.cs) — mono/48 kHz/16-bit only) on every reachable device in a zone. `POST /api/zones/{id}/broadcast` reads the raw `audio/wav` body, then `PlanAndStart`:
+[`IZoneBroadcaster`](../src/Oceana.Server/Infrastructure/Streaming/IZoneBroadcaster.cs) / [`ZoneBroadcaster`](../src/Oceana.Server/Infrastructure/Streaming/ZoneBroadcaster.cs) plays a recorded PCM message (decoded from an uploaded WAV by [`WavReader`](../src/Oceana.Server/Infrastructure/Audio/WavReader.cs) — mono or stereo, 48 kHz, 16-bit) on every reachable device in a zone. `POST /api/zones/{id}/broadcast` reads the raw `audio/wav` body, then `PlanAndStart`:
 
-- Groups the zone's devices by agent and **classifies** each: `Offline` (not connected / unknown), `Busy` (already streaming), `NoActiveDevices` (none of the zone's device ids are currently reported), else **targeted**. Returns the targeted/skipped summary immediately as the `202` body ([api.md](./api.md#broadcast-a-recorded-message)) — best-effort.
-- For each targeted agent, a background task: pushes an `AgentRouting` mapping the message's channel 0 to those devices ([`IAgentRoutingCommander`](../src/Oceana.Server/Infrastructure/Realtime/IAgentRoutingCommander.cs)), waits a short **settle** delay (the agent snapshots routing at connect time), streams the buffer, then **restores** the agent's stored routing. Status flows through the normal `AudioStreamManager` path, so targeted agents show `Streaming` on `/hubs/agents`.
+- **Classifies** the zone's agents via [`ZoneTargeting.Classify`](../src/Oceana.Server/Infrastructure/Streaming/ZoneTargeting.cs) (shared with playback): `Offline` (not connected / unknown), `Busy` (already streaming), `NoActiveDevices` (none of the zone's device ids are currently reported), else **targeted**. Returns the targeted/skipped summary immediately as the `202` body — best-effort.
+- For each targeted agent, a background task pushes an `AgentRouting` mapping the source's channels to those devices ([`IAgentRoutingCommander`](../src/Oceana.Server/Infrastructure/Realtime/IAgentRoutingCommander.cs)), waits a short **settle** delay (the agent snapshots routing at connect time), streams the buffer, then **restores** the agent's stored routing. Status flows through the normal `AudioStreamManager` path, so targeted agents show `Streaming` on `/hubs/agents`.
+
+## Zone playback
+
+[`IZonePlaybackService`](../src/Oceana.Server/Infrastructure/Streaming/IZonePlaybackService.cs) / [`ZonePlaybackService`](../src/Oceana.Server/Infrastructure/Streaming/ZonePlaybackService.cs) plays an uploaded audio **file** (stereo) to a zone with **start/stop and now-playing** — the first sustained, controllable source. The browser decodes + resamples to 48 kHz 16-bit and uploads PCM (so the server stays codec-free); `POST /api/zones/{id}/play` streams it play-once.
+
+- Reuses `ZoneTargeting` and the same push-routing (all source channels → devices) → settle → `TryStreamPcmAsync` → restore envelope as broadcast, but is **stateful**: it keeps a `ConcurrentDictionary<zoneId, {CTS, target agents, source name, started-at}>`. `Start` replaces any current playback, returns the [`ZonePlaybackState`](../src/Oceana.Server/Infrastructure/Streaming/ZonePlaybackState.cs) immediately, and a coordinator (`Task.WhenAll` of the per-agent tasks) clears the entry and notifies **stopped** when the track ends naturally. `Stop(zoneId)` cancels the zone's linked CTS (each agent stream unwinds and restores routing).
+- Playback start/stop/end are pushed over `/hubs/zones` as `ZonePlaybackChanged` (see Realtime); `GET /api/zones/{id}/playback` returns the current state for initial load. The uploaded PCM is held in memory for the playback's lifetime (bounded by the 256 MB body cap; a temp file is a future optimisation).
+
+## Per-zone volume
+
+Each zone has a persisted `Volume` (0.0–1.0, attenuation only) on [`ZoneInfo`](../src/Oceana.Server/Features/Zones/ZoneInfo.cs), stored/reloaded by the [zone registry](#zone-registry) like the rest of the config (`IZoneRegistry.SetVolume` write-through; `PUT /api/zones/{id}/volume` notifies `ZoneChanged`). The gain is applied **server-side in the stream pump**: `AudioStreamManager.TryStreamPcmAsync` takes a `Func<double> volume` read once per 20 ms chunk (unity is zero-copy; otherwise [`PcmGain.ApplyInt16`](../src/Oceana.Server/Infrastructure/Streaming/PcmGain.cs) scales the 16-bit samples). Playback passes a **live** provider that re-reads the zone's volume from the registry each chunk (so a slider change applies to audio already playing); broadcast captures the zone's volume at start.
 
 ## Realtime (SignalR)
 
 [`AgentStatusHub`](../src/Oceana.Server/Infrastructure/Realtime/AgentStatusHub.cs) is a strongly-typed hub (`Hub<IAgentStatusClient>`) mapped at **`/hubs/agents`**. The server pushes changes through [`IStatusNotifier`](../src/Oceana.Server/Infrastructure/Realtime/IStatusNotifier.cs) → [`SignalRStatusNotifier`](../src/Oceana.Server/Infrastructure/Realtime/SignalRStatusNotifier.cs) whenever an agent is registered, changes status, or is removed. Client methods: `AgentChanged(AgentInfo)` and `AgentRemoved(Guid)`. Enums are serialised **as strings**. Contract detail in [api.md](./api.md).
 
-[`ZoneStatusHub`](../src/Oceana.Server/Infrastructure/Realtime/ZoneStatusHub.cs) (`Hub<IZoneStatusClient>`) is the zones analogue, mapped at **`/hubs/zones`**. The zone endpoints push through [`IZoneStatusNotifier`](../src/Oceana.Server/Infrastructure/Realtime/IZoneStatusNotifier.cs) → [`SignalRZoneStatusNotifier`](../src/Oceana.Server/Infrastructure/Realtime/SignalRZoneStatusNotifier.cs) on create/update/remove. Client methods: `ZoneChanged(ZoneInfo)` and `ZoneRemoved(Guid)`.
+[`ZoneStatusHub`](../src/Oceana.Server/Infrastructure/Realtime/ZoneStatusHub.cs) (`Hub<IZoneStatusClient>`) is the zones analogue, mapped at **`/hubs/zones`**. The zone endpoints and playback service push through [`IZoneStatusNotifier`](../src/Oceana.Server/Infrastructure/Realtime/IZoneStatusNotifier.cs) → [`SignalRZoneStatusNotifier`](../src/Oceana.Server/Infrastructure/Realtime/SignalRZoneStatusNotifier.cs). Client methods: `ZoneChanged(ZoneInfo)`, `ZoneRemoved(Guid)`, and `ZonePlaybackChanged(ZonePlaybackState)`.
 
 > The front end consumes both status hubs; the agent-control hub below is exercised by the live agent.
 
@@ -111,7 +122,7 @@ Shared DTOs (`AgentRegistration`, `AgentRouting`, `AudioDevice`, `IAgentControlC
 - **OpenAPI** via `FastEndpoints.OpenApi` (Microsoft.AspNetCore.OpenApi under the hood). Document name `v1`; served at `/openapi/v1.json` **in Development only**.
 - **CORS** policy `frontend`: reflects **any** origin (`SetIsOriginAllowed(_ => true)`) with `AllowAnyHeader` + `AllowAnyMethod` + `AllowCredentials` (credentials are needed for SignalR, and can't be combined with `AllowAnyOrigin`, hence origin reflection). Permissive by design while there's no auth; tighten to an allow-list alongside authentication ([roadmap.md](./roadmap.md)).
 - **Logging:** Serilog (console + request logging).
-- DI singletons: `IAgentRegistry`, `IAgentConnectionFactory`, `IStatusNotifier`, `IAudioStreamManager`, `IZoneBroadcaster`, `IZoneRegistry`, `IZoneStatusNotifier`, and two `IStateStore<>` (see below).
+- DI singletons: `IAgentRegistry`, `IAgentConnectionFactory`, `IStatusNotifier`, `IAudioStreamManager`, `IZoneBroadcaster`, `IZonePlaybackService`, `IZoneRegistry`, `IZoneStatusNotifier`, and two `IStateStore<>` (see below).
 - **Hubs mapped:** `/hubs/agents`, `/hubs/agents-control`, `/hubs/zones`.
 
 ## Persistence

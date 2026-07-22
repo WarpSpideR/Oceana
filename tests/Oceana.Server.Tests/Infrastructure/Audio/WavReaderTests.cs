@@ -21,12 +21,24 @@ public class WavReaderTests
     }
 
     [Fact]
-    public void TryRead_RejectsStereo()
+    public void TryRead_AcceptsStereo()
     {
-        var wav = BuildWav(1, channels: 2, sampleRate: 48000, bits: 16, data: new byte[] { 0, 0, 0, 0 });
+        var pcm = new byte[] { 1, 0, 2, 0, 3, 0, 4, 0 };
+        var wav = BuildWav(1, channels: 2, sampleRate: 48000, bits: 16, data: pcm);
 
-        WavReader.TryRead(wav, out _, out var error).Should().BeFalse();
-        error.Should().NotBeNull();
+        var ok = WavReader.TryRead(wav, out var audio, out _);
+
+        ok.Should().BeTrue();
+        audio!.Format.Channels.Should().Be(2);
+        audio.Pcm.Should().Equal(pcm);
+    }
+
+    [Fact]
+    public void TryRead_RejectsMoreThanStereo()
+    {
+        var wav = BuildWav(1, channels: 6, sampleRate: 48000, bits: 16, data: new byte[] { 0, 0 });
+
+        WavReader.TryRead(wav, out _, out _).Should().BeFalse();
     }
 
     [Fact]

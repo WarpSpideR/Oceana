@@ -17,6 +17,8 @@ import { ConfirmDialog } from '../../../shared/components/ConfirmDialog'
 import { useAgents } from '../../agents/hooks/useAgents'
 import { BroadcastDialog } from '../components/BroadcastDialog'
 import { DevicePicker } from '../components/DevicePicker'
+import { ZonePlaybackPanel } from '../components/ZonePlaybackPanel'
+import { ZoneVolumeControl } from '../components/ZoneVolumeControl'
 import { useZone } from '../hooks/useZone'
 import { useZoneMutations } from '../hooks/useZoneMutations'
 import type { ZoneDevice } from '../types'
@@ -157,6 +159,14 @@ export function ZoneDetailPage() {
             </Button>
           </Stack>
         </Stack>
+      </SectionCard>
+
+      <SectionCard title="Volume">
+        <ZoneVolumeControl zone={zone} />
+      </SectionCard>
+
+      <SectionCard title="Play audio">
+        <ZonePlaybackPanel zone={zone} canPlay={canBroadcast} />
       </SectionCard>
 
       <SectionCard title="Broadcast a message">

@@ -20,6 +20,9 @@ public interface IAudioStreamManager
     /// <param name="agentId">The identifier of the agent to stream to.</param>
     /// <param name="pcm">The interleaved PCM samples to stream.</param>
     /// <param name="format">The format of the PCM buffer.</param>
+    /// <param name="volume">
+    /// A gain (0.0–1.0) read once per ~20 ms chunk so changes apply live; applied to 16-bit PCM only.
+    /// </param>
     /// <param name="cancellationToken">A token used to stop the stream.</param>
     /// <returns>
     /// True once the buffer has been streamed; false when the agent is unknown or already streaming.
@@ -28,6 +31,7 @@ public interface IAudioStreamManager
         Guid agentId,
         ReadOnlyMemory<byte> pcm,
         StreamFormat format,
+        Func<double> volume,
         CancellationToken cancellationToken);
 
     /// <summary>

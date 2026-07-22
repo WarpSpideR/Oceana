@@ -12,7 +12,7 @@ function ascii(view: DataView, offset: number, length: number): string {
 describe('encodeWavPcm16', () => {
   it('produces a mono 16-bit PCM WAV with a correct header', async () => {
     const samples = new Float32Array([0, 1, -1, 0.5])
-    const blob = encodeWavPcm16(samples, 48000)
+    const blob = encodeWavPcm16([samples], 48000)
     const view = new DataView(await blob.arrayBuffer())
 
     expect(blob.type).toBe('audio/wav')
@@ -28,14 +28,13 @@ describe('encodeWavPcm16', () => {
   })
 
   it('has the expected total byte length (44-byte header + PCM)', async () => {
-    const samples = new Float32Array(10)
-    const blob = encodeWavPcm16(samples, 48000)
+    const blob = encodeWavPcm16([new Float32Array(10)], 48000)
     expect(blob.size).toBe(44 + 10 * 2)
   })
 
   it('scales and clamps samples to signed 16-bit', async () => {
     const samples = new Float32Array([0, 1, -1, 0.5, 2, -2])
-    const view = new DataView(await encodeWavPcm16(samples, 48000).arrayBuffer())
+    const view = new DataView(await encodeWavPcm16([samples], 48000).arrayBuffer())
 
     expect(view.getInt16(44, true)).toBe(0)
     expect(view.getInt16(46, true)).toBe(32767) // 1.0 -> max
@@ -43,5 +42,20 @@ describe('encodeWavPcm16', () => {
     expect(view.getInt16(50, true)).toBe(16383) // 0.5
     expect(view.getInt16(52, true)).toBe(32767) // clamped from 2.0
     expect(view.getInt16(54, true)).toBe(-32768) // clamped from -2.0
+  })
+
+  it('interleaves stereo channels per frame with a stereo header', async () => {
+    const left = new Float32Array([1, 0])
+    const right = new Float32Array([-1, 0.5])
+    const view = new DataView(await encodeWavPcm16([left, right], 48000).arrayBuffer())
+
+    expect(view.getUint16(22, true)).toBe(2) // stereo
+    expect(view.getUint16(32, true)).toBe(4) // block align = 2 ch * 2 bytes
+    expect(view.getUint32(40, true)).toBe(2 * 4) // 2 frames * 4 bytes
+    // Frame 0: L then R, frame 1: L then R.
+    expect(view.getInt16(44, true)).toBe(32767) // L[0] = 1.0
+    expect(view.getInt16(46, true)).toBe(-32768) // R[0] = -1.0
+    expect(view.getInt16(48, true)).toBe(0) // L[1] = 0
+    expect(view.getInt16(50, true)).toBe(16383) // R[1] = 0.5
   })
 })

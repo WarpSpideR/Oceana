@@ -120,6 +120,55 @@ public class ZoneRegistryTests
         registry.Create("Kitchen", Array.Empty<ZoneDevice>()).Should().NotBeNull();
     }
 
+    [Fact]
+    public void Create_DefaultsVolumeToFull()
+    {
+        var registry = new ZoneRegistry();
+
+        registry.Create("Kitchen", Array.Empty<ZoneDevice>())!.Volume.Should().Be(1.0);
+    }
+
+    [Fact]
+    public void SetVolume_UpdatesTheVolume()
+    {
+        var registry = new ZoneRegistry();
+        var zone = registry.Create("Kitchen", Array.Empty<ZoneDevice>())!;
+
+        var result = registry.SetVolume(zone.Id, 0.4);
+
+        result.Status.Should().Be(ZoneUpdateStatus.Updated);
+        result.Zone!.Volume.Should().Be(0.4);
+        registry.Get(zone.Id)!.Volume.Should().Be(0.4);
+    }
+
+    [Fact]
+    public void SetVolume_ClampsOutOfRange()
+    {
+        var registry = new ZoneRegistry();
+        var zone = registry.Create("Kitchen", Array.Empty<ZoneDevice>())!;
+
+        registry.SetVolume(zone.Id, 5.0).Zone!.Volume.Should().Be(1.0);
+        registry.SetVolume(zone.Id, -2.0).Zone!.Volume.Should().Be(0.0);
+    }
+
+    [Fact]
+    public void SetVolume_ReturnsNotFound_ForUnknownId()
+    {
+        new ZoneRegistry().SetVolume(Guid.NewGuid(), 0.5).Status.Should().Be(ZoneUpdateStatus.NotFound);
+    }
+
+    [Fact]
+    public void Update_PreservesVolume()
+    {
+        var registry = new ZoneRegistry();
+        var zone = registry.Create("Kitchen", Array.Empty<ZoneDevice>())!;
+        registry.SetVolume(zone.Id, 0.3);
+
+        registry.Update(zone.Id, "Kitchen & Diner", new[] { Device() });
+
+        registry.Get(zone.Id)!.Volume.Should().Be(0.3);
+    }
+
     private static ZoneDevice Device(string deviceId = "device-1")
     {
         return new ZoneDevice { AgentId = Guid.NewGuid(), DeviceId = deviceId };

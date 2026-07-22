@@ -156,7 +156,7 @@ export function useAudioRecorder(): AudioRecorder {
     source.start()
     const rendered = await offline.startRendering()
 
-    return encodeWavPcm16(rendered.getChannelData(0), TARGET_SAMPLE_RATE)
+    return encodeWavPcm16([rendered.getChannelData(0)], TARGET_SAMPLE_RATE)
   }, [])
 
   useEffect(() => {

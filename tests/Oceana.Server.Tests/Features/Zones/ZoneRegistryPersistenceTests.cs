@@ -65,4 +65,15 @@ public class ZoneRegistryPersistenceTests
 
         reloaded.GetAll().Should().ContainSingle(z => z.Name == "Kitchen");
     }
+
+    [Fact]
+    public void SetVolume_PersistsAndSurvivesReload()
+    {
+        var store = new InMemoryStateStore<ZonesState>();
+        var zone = new ZoneRegistry(store).Create("Kitchen", Array.Empty<ZoneDevice>())!;
+
+        new ZoneRegistry(store).SetVolume(zone.Id, 0.25);
+
+        new ZoneRegistry(store).Get(zone.Id)!.Volume.Should().Be(0.25);
+    }
 }

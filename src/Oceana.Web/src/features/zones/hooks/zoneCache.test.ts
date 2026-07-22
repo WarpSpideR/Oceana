@@ -1,14 +1,15 @@
 import { QueryClient } from '@tanstack/react-query'
 import { describe, expect, it } from 'vitest'
 import { zoneKeys } from '../api/zoneKeys'
-import type { ZoneInfo } from '../types'
-import { applyZoneChanged, applyZoneRemoved } from './zoneCache'
+import type { ZoneInfo, ZonePlaybackState } from '../types'
+import { applyZoneChanged, applyZonePlaybackChanged, applyZoneRemoved } from './zoneCache'
 
 function makeZone(overrides: Partial<ZoneInfo> = {}): ZoneInfo {
   return {
     id: 'zone-1',
     name: 'Kitchen',
     devices: [],
+    volume: 1,
     ...overrides,
   }
 }
@@ -56,5 +57,35 @@ describe('applyZoneRemoved', () => {
     const list = client.getQueryData<ZoneInfo[]>(zoneKeys.list())
     expect(list).toHaveLength(1)
     expect(list?.[0].id).toBe('zone-2')
+  })
+})
+
+describe('applyZonePlaybackChanged', () => {
+  function state(playing: boolean): ZonePlaybackState {
+    return {
+      zoneId: 'zone-1',
+      playing,
+      sourceName: playing ? 'track.wav' : null,
+      startedAtUtc: null,
+      targeted: [],
+      skipped: [],
+    }
+  }
+
+  it('stores the state under the playback key when playing', () => {
+    const client = new QueryClient()
+
+    applyZonePlaybackChanged(client, state(true))
+
+    expect(client.getQueryData<ZonePlaybackState | null>(zoneKeys.playback('zone-1'))?.playing).toBe(true)
+  })
+
+  it('clears to null when not playing', () => {
+    const client = new QueryClient()
+    client.setQueryData<ZonePlaybackState | null>(zoneKeys.playback('zone-1'), state(true))
+
+    applyZonePlaybackChanged(client, state(false))
+
+    expect(client.getQueryData<ZonePlaybackState | null>(zoneKeys.playback('zone-1'))).toBeNull()
   })
 })

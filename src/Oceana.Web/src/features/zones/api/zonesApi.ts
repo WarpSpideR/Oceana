@@ -1,5 +1,11 @@
 import { jsonBody, request } from '../../../shared/api/http'
-import type { BroadcastResult, CreateZoneRequest, UpdateZoneRequest, ZoneInfo } from '../types'
+import type {
+  BroadcastResult,
+  CreateZoneRequest,
+  UpdateZoneRequest,
+  ZoneInfo,
+  ZonePlaybackState,
+} from '../types'
 
 /** Fetches all zones. `GET /api/zones`. */
 export function listZones(): Promise<ZoneInfo[]> {
@@ -33,6 +39,19 @@ export function removeZone(id: string): Promise<void> {
 }
 
 /**
+ * Sets a zone's playback volume. `PUT /api/zones/{id}/volume`.
+ * @param id The zone id.
+ * @param volume The volume, 0.0 (silent)–1.0 (full).
+ * @returns The updated zone.
+ */
+export function setZoneVolume(id: string, volume: number): Promise<ZoneInfo> {
+  return request<ZoneInfo>(`/api/zones/${id}/volume`, {
+    method: 'PUT',
+    body: jsonBody({ volume }),
+  })
+}
+
+/**
  * Broadcasts a recorded message (a mono/48 kHz/16-bit PCM WAV) to a zone.
  * `POST /api/zones/{id}/broadcast`.
  * @param id The zone id.
@@ -46,4 +65,29 @@ export function broadcastToZone(id: string, wav: Blob): Promise<BroadcastResult>
     // Explicit content type suppresses the default JSON header for this binary upload.
     headers: { 'Content-Type': 'audio/wav' },
   })
+}
+
+/**
+ * Plays an audio file (a 48 kHz, 16-bit PCM WAV) to a zone. `POST /api/zones/{id}/play`.
+ * @param id The zone id.
+ * @param wav The WAV audio blob.
+ * @param name A display name for the source (e.g. the file name).
+ * @returns The resulting playback state.
+ */
+export function playToZone(id: string, wav: Blob, name: string): Promise<ZonePlaybackState> {
+  return request<ZonePlaybackState>(`/api/zones/${id}/play?name=${encodeURIComponent(name)}`, {
+    method: 'POST',
+    body: wav,
+    headers: { 'Content-Type': 'audio/wav' },
+  })
+}
+
+/** Stops a zone's current playback. `DELETE /api/zones/{id}/play`. */
+export function stopZonePlayback(id: string): Promise<void> {
+  return request<void>(`/api/zones/${id}/play`, { method: 'DELETE' })
+}
+
+/** Fetches a zone's current playback state, or null when nothing is playing. `GET /api/zones/{id}/playback`. */
+export async function getZonePlayback(id: string): Promise<ZonePlaybackState | null> {
+  return (await request<ZonePlaybackState | null>(`/api/zones/${id}/playback`)) ?? null
 }

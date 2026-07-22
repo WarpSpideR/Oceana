@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { zoneKeys } from '../api/zoneKeys'
-import type { ZoneInfo } from '../types'
+import type { ZoneInfo, ZonePlaybackState } from '../types'
 
 /**
  * Applies a `ZoneChanged` hub event to the query cache: upserts the zone in the
@@ -34,4 +34,17 @@ export function applyZoneRemoved(queryClient: QueryClient, zoneId: string): void
     (previous ?? []).filter((z) => z.id !== zoneId),
   )
   queryClient.removeQueries({ queryKey: zoneKeys.detail(zoneId) })
+}
+
+/**
+ * Applies a `ZonePlaybackChanged` hub event to the query cache: stores the state under the zone's
+ * playback key (null when nothing is playing) so the UI reflects start/stop/end live.
+ * @param queryClient The query client whose cache to update.
+ * @param state The playback state pushed by the server.
+ */
+export function applyZonePlaybackChanged(queryClient: QueryClient, state: ZonePlaybackState): void {
+  queryClient.setQueryData<ZonePlaybackState | null>(
+    zoneKeys.playback(state.zoneId),
+    state.playing ? state : null,
+  )
 }

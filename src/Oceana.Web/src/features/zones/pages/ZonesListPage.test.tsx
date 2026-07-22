@@ -24,6 +24,7 @@ function zone(overrides: Partial<ZoneInfo> = {}): ZoneInfo {
     id: 'zone-1',
     name: 'Kitchen',
     devices: [{ agentId: 'agent-1', deviceId: 'device-1' }],
+    volume: 1,
     ...overrides,
   }
 }
