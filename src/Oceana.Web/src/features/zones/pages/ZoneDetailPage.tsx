@@ -11,8 +11,11 @@ import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
+import CampaignIcon from '@mui/icons-material/Campaign'
 import { ApiError, errorMessage } from '../../../shared/api/http'
 import { ConfirmDialog } from '../../../shared/components/ConfirmDialog'
+import { useAgents } from '../../agents/hooks/useAgents'
+import { BroadcastDialog } from '../components/BroadcastDialog'
 import { DevicePicker } from '../components/DevicePicker'
 import { useZone } from '../hooks/useZone'
 import { useZoneMutations } from '../hooks/useZoneMutations'
@@ -41,10 +44,12 @@ export function ZoneDetailPage() {
   const navigate = useNavigate()
   const { data: zone, isPending, isError, error } = useZone(id)
   const { updateZoneMutation, removeZoneMutation } = useZoneMutations(id)
+  const { data: agents } = useAgents()
 
   const [name, setName] = useState('')
   const [devices, setDevices] = useState<ZoneDevice[]>([])
   const [removeOpen, setRemoveOpen] = useState(false)
+  const [broadcastOpen, setBroadcastOpen] = useState(false)
 
   // Seed the editor when the zone first loads or when switching zones; live
   // updates to the same zone don't clobber in-progress edits.
@@ -98,6 +103,12 @@ export function ZoneDetailPage() {
 
   const updateErrorMessage = errorMessage(updateZoneMutation.error)
 
+  const knownAgents = agents ?? []
+  const canBroadcast = zone.devices.some((device) => {
+    const agent = knownAgents.find((candidate) => candidate.id === device.agentId)
+    return agent?.connected === true && agent.devices.some((reported) => reported.id === device.deviceId)
+  })
+
   return (
     <Stack spacing={3}>
       {backLink}
@@ -148,6 +159,27 @@ export function ZoneDetailPage() {
         </Stack>
       </SectionCard>
 
+      <SectionCard title="Broadcast a message">
+        <Stack spacing={2} sx={{ alignItems: 'flex-start' }}>
+          <Typography variant="body2" color="text.secondary">
+            Record a message from your microphone and play it on this zone&apos;s devices.
+          </Typography>
+          <Button
+            variant="contained"
+            startIcon={<CampaignIcon />}
+            onClick={() => setBroadcastOpen(true)}
+            disabled={!canBroadcast}
+          >
+            Record &amp; broadcast
+          </Button>
+          {!canBroadcast && (
+            <Typography variant="body2" color="text.secondary">
+              Add a device from a connected agent to broadcast to this zone.
+            </Typography>
+          )}
+        </Stack>
+      </SectionCard>
+
       <SectionCard title="Danger zone">
         <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
           <Button color="error" variant="outlined" onClick={() => setRemoveOpen(true)}>
@@ -174,6 +206,8 @@ export function ZoneDetailPage() {
           })
         }
       />
+
+      <BroadcastDialog zone={zone} open={broadcastOpen} onClose={() => setBroadcastOpen(false)} />
     </Stack>
   )
 }

@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { createZone, removeZone, updateZone } from '../api/zonesApi'
+import { broadcastToZone, createZone, removeZone, updateZone } from '../api/zonesApi'
 import { zoneKeys } from '../api/zoneKeys'
 import type { CreateZoneRequest, UpdateZoneRequest } from '../types'
 
@@ -40,4 +40,16 @@ export function useZoneMutations(zoneId: string) {
   })
 
   return { updateZoneMutation, removeZoneMutation }
+}
+
+/**
+ * Mutation for broadcasting a recorded message to a zone. A broadcast doesn't change zone state,
+ * so there is no cache invalidation.
+ * @param zoneId The target zone id.
+ * @returns The broadcast mutation (takes a WAV blob).
+ */
+export function useBroadcastToZone(zoneId: string) {
+  return useMutation({
+    mutationFn: (wav: Blob) => broadcastToZone(zoneId, wav),
+  })
 }

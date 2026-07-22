@@ -56,6 +56,7 @@ public static class Program
         builder.Services.AddSingleton<IStatusNotifier, SignalRStatusNotifier>();
         builder.Services.AddSingleton<IAgentRoutingCommander, SignalRRoutingCommander>();
         builder.Services.AddSingleton<IAudioStreamManager, AudioStreamManager>();
+        builder.Services.AddSingleton<IZoneBroadcaster, ZoneBroadcaster>();
         builder.Services.AddSingleton<IZoneRegistry, ZoneRegistry>();
         builder.Services.AddSingleton<IZoneStatusNotifier, SignalRZoneStatusNotifier>();
 

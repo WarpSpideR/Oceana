@@ -11,13 +11,14 @@
 - **Server** — FastEndpoints Web API with an in-memory agent registry, SignalR status broadcasting, OpenAPI, and CORS; streams a **generated sine test tone** to agents with real-time pacing ([server.md](./server.md), [api.md](./api.md)).
 - **Server control plane** — agents **self-register** over a persistent SignalR connection (`/hubs/agents-control`) reporting their devices; the server pushes **channel→device routing**, applied on the agent's next stream ([server.md](./server.md#agent-control-plane), [agent.md](./agent.md#server-control-connection)).
 - **React front end** (`Oceana.Web`) — a Vite + TypeScript + MUI SPA consuming the REST API and the `/hubs/agents` + `/hubs/zones` status hubs: a live agent dashboard, per-agent channel→device routing editor, and test-tone stream start/stop ([web.md](./web.md)).
-- **Zones (management)** — a `Features/Zones` slice + UI to create/rename/delete named zones and assign devices from any agent(s), kept live over `/hubs/zones`. In-memory, unique names. Streaming *to* a zone is not yet built ([server.md](./server.md#zone-registry), [api.md](./api.md#zones)).
+- **Zones (management)** — a `Features/Zones` slice + UI to create/rename/delete named zones and assign devices from any agent(s), kept live over `/hubs/zones`. In-memory, unique names ([server.md](./server.md#zone-registry), [api.md](./api.md#zones)).
+- **Zone broadcast** — record a message from the browser microphone and play it on every reachable device in a zone. The **first real audio source** and the first **fan-out**: the server decodes the uploaded WAV, and for each agent pushes routing to the zone's devices, streams the mono PCM (best-effort, skips offline/busy agents), then restores routing ([server.md](./server.md#zone-broadcast), [api.md](./api.md#broadcast-a-recorded-message), [web.md](./web.md#broadcasting-a-message)).
 - **Verified end-to-end**: agent self-registers with devices → push routing → 4-channel stream splits across two devices per the server config → disconnect flips `connected`.
 - **35 unit tests** on a modern xUnit v3 / MTP stack.
 
 **Not yet built:**
 
-- Any **real audio source** — only the test tone exists.
+- Broader **real audio sources** — a recorded mic message now works (zone broadcast); file playback, loopback capture and line-in are still to come.
 - **Authentication**, **persistence**, and streaming one source to **multiple agents** (fan-out).
 
 ## Planned work (with rationale)
@@ -25,10 +26,10 @@
 | Area | Plan | Why / notes |
 |------|------|-------------|
 | **Front end** | Grow the SPA ([web.md](./web.md)) as new server features land; add auth once the server has it. | The base dashboard, routing editor and stream controls are built against the [api.md](./api.md) contract. |
-| **Real audio sources** | File playback (WAV/MP3), system/WASAPI **loopback** capture, line-in/mic. | Replaces the test tone; the OCAP header already carries format so the pipeline is source-agnostic. |
+| **Real audio sources** | File playback (WAV/MP3), system/WASAPI **loopback** capture, line-in. | A recorded **mic** message already streams (zone broadcast); the stream manager now takes an arbitrary PCM buffer, so more sources are additive. |
 | **Compression (Opus)** | Optional Opus encoding via **Concentus** (pure-managed). | Raw PCM is ~1.5 Mbps/stream; Opus cuts bandwidth ~10–20×. Would be a new OCAP encoding + a decode step on the agent. |
 | **Authentication** | Real auth on the server; drop the blanket `AllowAnonymous()`; tighten the allow-any-origin CORS policy to an explicit allow-list. | FastEndpoints is secure-by-default; every endpoint currently opts out, and CORS currently reflects any origin for the front end. See [server.md](./server.md#fastendpoints-repr). |
-| **Concurrency / fan-out** | Stream one source to **many agents**, incl. **to every device in a zone** at once; per-agent/zone volume/grouping. | Multi-*device* fan-out within one agent is done, and **zone management** exists ([server.md](./server.md#zone-registry)); streaming to multiple agents / to a zone, and per-agent/zone volume, are not. |
+| **Concurrency / fan-out** | Continuous streaming to **many agents** at once; per-agent/zone volume/grouping. | Multi-*device* fan-out within one agent is done, and a **zone broadcast** fans a recorded message out to every reachable agent in a zone ([server.md](./server.md#zone-broadcast)); a continuous live source to many agents, and per-agent/zone volume, are not. |
 | **Clock-drift handling** | Detect/compensate when a source's production rate drifts from the agent's playback rate. | A buffer that slowly drains despite good pacing is a *rate deficit*, which no fixed jitter buffer can fix; needs resampling or adaptive pacing. See [agent.md](./agent.md#playback-pipeline). |
 | **Shared kernel** | Lift `AgentInfo`/`AgentStatus`/`IAgentRegistry` out of the Agents slice when a 2nd slice appears. | Removes the temporary `Infrastructure → slice` dependency ([architecture.md](./architecture.md#server-side-structure-vertical-slices--shared-infrastructure)). |
 | **Code coverage** | Wire up MTP's `Microsoft.Testing.Extensions.CodeCoverage` (`dotnet test --coverage`). | The old coverlet collector doesn't apply under MTP ([development.md](./development.md#code-coverage-not-yet-wired)). |

@@ -38,15 +38,20 @@ src/Oceana.Web/src/
     │   ├── routingModel.ts # pure routing parse/validate/build helpers
     │   └── pages/          # AgentsListPage, AgentDetailPage
     └── zones/              # the Zones slice
-        ├── types.ts        # ZoneInfo, ZoneDevice
-        ├── api/            # zonesApi.ts (CRUD), zoneKeys.ts
-        ├── hooks/          # useZones, useZone, useZoneMutations, useZoneHub, zoneCache
-        ├── components/     # ZonesTable, CreateZoneDialog, DevicePicker
+        ├── types.ts        # ZoneInfo, ZoneDevice, BroadcastResult
+        ├── api/            # zonesApi.ts (CRUD + broadcastToZone), zoneKeys.ts
+        ├── hooks/          # useZones, useZone, useZoneMutations (+ useBroadcastToZone), useZoneHub, zoneCache
+        ├── audio/          # wav.ts (WAV encoder), useAudioRecorder (mic capture)
+        ├── components/     # ZonesTable, CreateZoneDialog, DevicePicker, BroadcastDialog
         ├── zoneModel.ts    # pure device-selection + resolve-against-agents helpers
         └── pages/          # ZonesListPage, ZoneDetailPage
 ```
 
 The app bar switches between the **Agents** and **Zones** sections; `app/Providers.tsx` runs both the agent and zone hub hooks and feeds a combined status to the connection banner.
+
+### Broadcasting a message
+
+The zone detail page has a **Broadcast a message** card (enabled only when a zone device's agent is connected). `BroadcastDialog` uses `useAudioRecorder` — `getUserMedia` + `MediaRecorder` to capture (≤ 60 s), an `<audio>` element for preview, and re-record — then, on broadcast, `getWavBlob()` decodes the recording, down-mixes to mono and resamples to **48 kHz** via `OfflineAudioContext`, and `wav.ts` encodes a 16-bit PCM WAV. That blob is `POST`ed as `audio/wav` to `/api/zones/{id}/broadcast` (the explicit `Content-Type` is why binary upload needs no change to the shared `request` helper). The dialog shows the returned summary (agents played to / skipped). All browser media APIs live in the recorder hook so the rest of the UI stays testable; `wav.ts` is unit-tested directly.
 
 ### Data flow
 

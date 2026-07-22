@@ -13,6 +13,10 @@ public sealed class AudioStreamManager : IAudioStreamManager, IAsyncDisposable
 {
     private const int ChunkMilliseconds = 20;
 
+    // The agent does not drain its buffer on EOF, so hold the connection open briefly after the
+    // last sample is sent so the buffered audio (pre-roll + jitter buffer) finishes playing.
+    private const int TailHoldMilliseconds = 750;
+
     private readonly ConcurrentDictionary<Guid, StreamState> streams = new ConcurrentDictionary<Guid, StreamState>();
     private readonly IAgentConnectionFactory connectionFactory;
     private readonly IAgentRegistry registry;
@@ -55,7 +59,52 @@ public sealed class AudioStreamManager : IAudioStreamManager, IAsyncDisposable
             return false;
         }
 
-        state.Task = Task.Run(() => RunStreamAsync(agent, options, cancellation.Token));
+        var header = new AudioStreamHeader(
+            AudioEncoding.Pcm,
+            options.Channels,
+            ToneGenerator.SampleRate,
+            ToneGenerator.BitsPerSample);
+        state.Task = Task.Run(() =>
+            RunStreamAsync(agent, header, (stream, ct) => PumpToneAsync(stream, options, ct), cancellation.Token));
+        return true;
+    }
+
+    /// <inheritdoc/>
+    public async Task<bool> TryStreamPcmAsync(
+        Guid agentId,
+        ReadOnlyMemory<byte> pcm,
+        StreamFormat format,
+        CancellationToken cancellationToken)
+    {
+        var agent = registry.Get(agentId);
+        if (agent is null)
+        {
+            return false;
+        }
+
+        var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var state = new StreamState(cancellation);
+        if (!streams.TryAdd(agentId, state))
+        {
+            cancellation.Dispose();
+            return false;
+        }
+
+        state.Task = RunStreamAsync(
+            agent,
+            format.ToHeader(),
+            (stream, ct) => PumpBufferAsync(stream, pcm, format, ct),
+            cancellation.Token);
+
+        try
+        {
+            await state.Task;
+        }
+        finally
+        {
+            cancellation.Dispose();
+        }
+
         return true;
     }
 
@@ -135,7 +184,44 @@ public sealed class AudioStreamManager : IAudioStreamManager, IAsyncDisposable
         }
     }
 
-    private async Task RunStreamAsync(AgentInfo agent, ToneOptions options, CancellationToken cancellationToken)
+    private static async Task PumpBufferAsync(
+        Stream stream,
+        ReadOnlyMemory<byte> pcm,
+        StreamFormat format,
+        CancellationToken cancellationToken)
+    {
+        var framesPerChunk = format.SampleRate * ChunkMilliseconds / 1000;
+        var chunkBytes = framesPerChunk * format.BytesPerFrame;
+
+        var clock = Stopwatch.StartNew();
+        long framesSent = 0;
+        var offset = 0;
+
+        while (offset < pcm.Length && !cancellationToken.IsCancellationRequested)
+        {
+            var take = Math.Min(chunkBytes, pcm.Length - offset);
+            await stream.WriteAsync(pcm.Slice(offset, take), cancellationToken);
+            offset += take;
+            framesSent += take / format.BytesPerFrame;
+
+            // Real-time pacing: sleep only until the wall clock catches up to the audio timeline.
+            var scheduledMilliseconds = (double)framesSent / format.SampleRate * 1000.0;
+            var aheadMilliseconds = scheduledMilliseconds - clock.Elapsed.TotalMilliseconds;
+            if (aheadMilliseconds > 1.0)
+            {
+                await Task.Delay((int)aheadMilliseconds, cancellationToken);
+            }
+        }
+
+        // Keep the connection open so the agent's buffered tail plays out before it is closed.
+        await Task.Delay(TailHoldMilliseconds, cancellationToken);
+    }
+
+    private async Task RunStreamAsync(
+        AgentInfo agent,
+        AudioStreamHeader header,
+        Func<Stream, CancellationToken, Task> pump,
+        CancellationToken cancellationToken)
     {
         await UpdateStatusAsync(agent.Id, AgentStatus.Connecting, null);
 
@@ -143,23 +229,17 @@ public sealed class AudioStreamManager : IAudioStreamManager, IAsyncDisposable
         {
             await using var connection = await connectionFactory.ConnectAsync(agent.Host, agent.Port, cancellationToken);
 
-            var header = new AudioStreamHeader(
-                AudioEncoding.Pcm,
-                options.Channels,
-                ToneGenerator.SampleRate,
-                ToneGenerator.BitsPerSample);
             await header.WriteToAsync(connection.Stream, cancellationToken);
 
             await UpdateStatusAsync(agent.Id, AgentStatus.Streaming, null);
             logger.LogInformation(
-                "Streaming {Frequency} Hz tone ({Channels} channel(s)) to agent {Agent} ({Host}:{Port}).",
-                options.Frequency,
-                options.Channels,
+                "Streaming {Channels} channel(s) to agent {Agent} ({Host}:{Port}).",
+                header.Channels,
                 agent.Name,
                 agent.Host,
                 agent.Port);
 
-            await PumpToneAsync(connection.Stream, options, cancellationToken);
+            await pump(connection.Stream, cancellationToken);
             await UpdateStatusAsync(agent.Id, AgentStatus.Idle, null);
         }
         catch (OperationCanceledException)

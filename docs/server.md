@@ -63,7 +63,7 @@ The endpoints and their status codes are tabulated in [api.md](./api.md).
 - In-memory, registered as a **singleton**; empty on restart (no persistence yet).
 - **API-managed** (unlike agents): `Create` generates the zone id; `Update` replaces name + devices; `Remove` deletes. Endpoints notify over `/hubs/zones` on success.
 - **Unique names.** Because uniqueness spans keys, writes are serialised by a single `lock` guarding a `Dictionary<Guid, ZoneInfo>` plus a case-insensitive name→id index (a deliberate departure from `AgentRegistry`'s per-key CAS loops). `Create` returns null and `Update` returns `NameConflict` when a name is taken (→ `409`); a rename may keep the zone's own name.
-- A zone holds a name and a list of [`ZoneDevice`](../src/Oceana.Server/Features/Zones/ZoneDevice.cs) `(agentId, deviceId)` pairs. Membership is **not** validated against the agent registry, so a zone may reference an offline or since-removed device; the front end resolves names/availability against `GET /api/agents`. Streaming to a zone is future work ([roadmap.md](./roadmap.md)).
+- A zone holds a name and a list of [`ZoneDevice`](../src/Oceana.Server/Features/Zones/ZoneDevice.cs) `(agentId, deviceId)` pairs. Membership is **not** validated against the agent registry, so a zone may reference an offline or since-removed device; the front end resolves names/availability against `GET /api/agents`. Playing audio to a zone is the [zone broadcast](#zone-broadcast) below.
 
 ## Tone streaming
 
@@ -78,6 +78,15 @@ The current audio source is a **generated sine test tone** (proves the full pipe
 - **One stream per agent:** tracked in a `ConcurrentDictionary` keyed by agent id; a second start returns `409 Conflict`.
 
 The connection is abstracted behind [`IAgentConnection`](../src/Oceana.Server/Infrastructure/Streaming/IAgentConnection.cs) (real impl: [`TcpAgentConnection`](../src/Oceana.Server/Infrastructure/Streaming/TcpAgentConnection.cs), which sets `NoDelay`), so the stream manager is unit-testable without real sockets — see [`AudioStreamManagerTests`](../tests/Oceana.Server.Tests/Infrastructure/Streaming/AudioStreamManagerTests.cs).
+
+The transport half of `AudioStreamManager` is source-agnostic: `RunStreamAsync(header, pump)` writes any OCAP header and runs any pump, so besides the tone it also streams a finite PCM buffer via `TryStreamPcmAsync(agentId, pcm, StreamFormat, ct)` (awaitable, same one-per-agent guard). `PumpBufferAsync` reuses the 20 ms real-time pacing, then holds the socket open for `TailHoldMilliseconds` (~750 ms) so the agent's buffered tail plays out (the agent does not drain on EOF).
+
+## Zone broadcast
+
+[`IZoneBroadcaster`](../src/Oceana.Server/Infrastructure/Streaming/IZoneBroadcaster.cs) / [`ZoneBroadcaster`](../src/Oceana.Server/Infrastructure/Streaming/ZoneBroadcaster.cs) plays a recorded PCM message (decoded from an uploaded WAV by [`WavReader`](../src/Oceana.Server/Infrastructure/Audio/WavReader.cs) — mono/48 kHz/16-bit only) on every reachable device in a zone. `POST /api/zones/{id}/broadcast` reads the raw `audio/wav` body, then `PlanAndStart`:
+
+- Groups the zone's devices by agent and **classifies** each: `Offline` (not connected / unknown), `Busy` (already streaming), `NoActiveDevices` (none of the zone's device ids are currently reported), else **targeted**. Returns the targeted/skipped summary immediately as the `202` body ([api.md](./api.md#broadcast-a-recorded-message)) — best-effort.
+- For each targeted agent, a background task: pushes an `AgentRouting` mapping the message's channel 0 to those devices ([`IAgentRoutingCommander`](../src/Oceana.Server/Infrastructure/Realtime/IAgentRoutingCommander.cs)), waits a short **settle** delay (the agent snapshots routing at connect time), streams the buffer, then **restores** the agent's stored routing. Status flows through the normal `AudioStreamManager` path, so targeted agents show `Streaming` on `/hubs/agents`.
 
 ## Realtime (SignalR)
 
@@ -102,7 +111,7 @@ Shared DTOs (`AgentRegistration`, `AgentRouting`, `AudioDevice`, `IAgentControlC
 - **OpenAPI** via `FastEndpoints.OpenApi` (Microsoft.AspNetCore.OpenApi under the hood). Document name `v1`; served at `/openapi/v1.json` **in Development only**.
 - **CORS** policy `frontend`: reflects **any** origin (`SetIsOriginAllowed(_ => true)`) with `AllowAnyHeader` + `AllowAnyMethod` + `AllowCredentials` (credentials are needed for SignalR, and can't be combined with `AllowAnyOrigin`, hence origin reflection). Permissive by design while there's no auth; tighten to an allow-list alongside authentication ([roadmap.md](./roadmap.md)).
 - **Logging:** Serilog (console + request logging).
-- DI singletons: `IAgentRegistry`, `IAgentConnectionFactory`, `IStatusNotifier`, `IAudioStreamManager`, `IZoneRegistry`, `IZoneStatusNotifier`.
+- DI singletons: `IAgentRegistry`, `IAgentConnectionFactory`, `IStatusNotifier`, `IAudioStreamManager`, `IZoneBroadcaster`, `IZoneRegistry`, `IZoneStatusNotifier`.
 - **Hubs mapped:** `/hubs/agents`, `/hubs/agents-control`, `/hubs/zones`.
 
 ## Ports (note the discrepancy)

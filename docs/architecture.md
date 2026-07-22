@@ -107,7 +107,7 @@ The server is organised by **feature (vertical slice)** rather than by technical
 | Term | Meaning |
 |------|---------|
 | **Agent** | A playback endpoint (`Oceana.Agent.Windows`) that plays audio. It's the audio TCP *listener* and the control-plane SignalR *client* (dials the server). |
-| **Zone** | A named, user-managed group of audio devices (drawn from one or more agents) intended to be streamed to together. Managed server-side (in-memory) and in the front end; streaming to a zone is future work. |
+| **Zone** | A named, user-managed group of audio devices (drawn from one or more agents) intended to be streamed to together. Managed server-side (in-memory) and in the front end; a **zone broadcast** plays a recorded mic message on every reachable device in the zone. |
 | **Server** | The control plane (`Oceana.Server`) that tracks agents, pushes routing, and streams audio. It's the audio TCP *client* and hosts the control + status hubs. |
 | **Control plane / data plane** | Control = agent↔server SignalR (registration, routing, status). Data = the server→agent TCP audio stream. |
 | **OCAP** | "Oceana Audio Protocol" — the wire format: a fixed 16-byte handshake header followed by raw PCM. See [protocol.md](./protocol.md). |

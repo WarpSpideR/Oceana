@@ -36,3 +36,36 @@ export interface UpdateZoneRequest {
   /** The devices to assign. */
   devices: ZoneDevice[]
 }
+
+/** Why an agent in a zone was skipped by a broadcast. */
+export type BroadcastSkipReason = 'Offline' | 'Busy' | 'NoActiveDevices'
+
+/** An agent a broadcast is playing to. */
+export interface BroadcastTarget {
+  /** The agent id. */
+  agentId: string
+  /** The agent name. */
+  agentName: string
+  /** How many of the agent's devices the message plays on. */
+  deviceCount: number
+}
+
+/** An agent in the zone the broadcast skipped, with the reason. */
+export interface BroadcastSkip {
+  /** The agent id. */
+  agentId: string
+  /** The agent name, or its id when unknown. */
+  agentName: string
+  /** Why the agent was skipped. */
+  reason: BroadcastSkipReason
+}
+
+/** The summary the server returns when a broadcast starts. */
+export interface BroadcastResult {
+  /** The zone that was broadcast to. */
+  zoneId: string
+  /** The agents the message is playing to. */
+  targeted: BroadcastTarget[]
+  /** The agents that were skipped, with reasons. */
+  skipped: BroadcastSkip[]
+}

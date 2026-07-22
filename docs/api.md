@@ -114,6 +114,26 @@ Zone **names are unique** (case-insensitive, trimmed); a clashing name returns `
 ```
 A zone device is the pair (owning agent id, that agent's stable device id). Zones store only these ids; a client resolves display names/availability against `GET /api/agents`. Assignments referencing an offline or removed agent/device are kept (not auto-pruned). `POST`/`PUT` accept an `outputs`-free body of `{ "name": "Kitchen", "devices": [ … ] }`; an empty `devices` list is a valid (empty) zone.
 
+### Broadcast a recorded message
+
+`POST /api/zones/{id}/broadcast` plays a recorded message on every reachable device in the zone — the first real audio source and the first fan-out. The **request body is the raw audio** (`Content-Type: audio/wav`), a **mono, 48 kHz, 16-bit PCM WAV** (≤ 16 MB); it is **not** JSON. The server accepts the audio, returns immediately, and streams in the background (targeted agents flip to `Streaming` on `/hubs/agents`).
+
+| Verb & route | Body | Success | Errors |
+|---|---|---|---|
+| `POST /api/zones/{id}/broadcast` | `audio/wav` (mono 48 kHz 16-bit PCM) | `202` `BroadcastResult` | `404` unknown zone · `400` empty / non-WAV / wrong format / too large |
+
+Delivery is **best-effort**: for each agent owning zone devices the server pushes a temporary routing (the message's single channel → those devices), streams, then restores the agent's configured routing. Agents are skipped (not fatal) when `Offline`, `Busy` (already streaming), or the zone's devices aren't currently reported (`NoActiveDevices`).
+
+```json
+// 202 BroadcastResult
+{
+  "zoneId": "6b1e…",
+  "targeted": [ { "agentId": "44e2…", "agentName": "living-room", "deviceCount": 1 } ],
+  "skipped":  [ { "agentId": "9af3…", "agentName": "kitchen", "reason": "Offline" } ]
+}
+```
+`reason` ∈ `"Offline" | "Busy" | "NoActiveDevices"`. Runtime failures after the 202 (e.g. a device unplugged mid-broadcast) surface as the agent going `Faulted` on `/hubs/agents`, not in this body.
+
 ## SignalR — front-end status hub `/hubs/agents`
 
 Strongly-typed hub ([`AgentStatusHub`](../src/Oceana.Server/Infrastructure/Realtime/AgentStatusHub.cs)) that **pushes** agent changes to connected front ends:

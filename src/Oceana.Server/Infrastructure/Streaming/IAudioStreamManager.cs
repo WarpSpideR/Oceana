@@ -14,6 +14,23 @@ public interface IAudioStreamManager
     bool TryStartStream(Guid agentId, ToneOptions options);
 
     /// <summary>
+    /// Streams a finite in-memory PCM buffer to the given agent, awaiting completion.
+    /// Runs at most one stream per agent, sharing the same guard as the test-tone stream.
+    /// </summary>
+    /// <param name="agentId">The identifier of the agent to stream to.</param>
+    /// <param name="pcm">The interleaved PCM samples to stream.</param>
+    /// <param name="format">The format of the PCM buffer.</param>
+    /// <param name="cancellationToken">A token used to stop the stream.</param>
+    /// <returns>
+    /// True once the buffer has been streamed; false when the agent is unknown or already streaming.
+    /// </returns>
+    Task<bool> TryStreamPcmAsync(
+        Guid agentId,
+        ReadOnlyMemory<byte> pcm,
+        StreamFormat format,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Stops any active stream to the given agent.
     /// </summary>
     /// <param name="agentId">The identifier of the agent.</param>

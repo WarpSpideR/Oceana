@@ -1,5 +1,5 @@
 import { jsonBody, request } from '../../../shared/api/http'
-import type { CreateZoneRequest, UpdateZoneRequest, ZoneInfo } from '../types'
+import type { BroadcastResult, CreateZoneRequest, UpdateZoneRequest, ZoneInfo } from '../types'
 
 /** Fetches all zones. `GET /api/zones`. */
 export function listZones(): Promise<ZoneInfo[]> {
@@ -30,4 +30,20 @@ export function updateZone(id: string, body: UpdateZoneRequest): Promise<ZoneInf
 /** Removes a zone. `DELETE /api/zones/{id}`. */
 export function removeZone(id: string): Promise<void> {
   return request<void>(`/api/zones/${id}`, { method: 'DELETE' })
+}
+
+/**
+ * Broadcasts a recorded message (a mono/48 kHz/16-bit PCM WAV) to a zone.
+ * `POST /api/zones/{id}/broadcast`.
+ * @param id The zone id.
+ * @param wav The WAV audio blob.
+ * @returns The broadcast summary (agents targeted and skipped).
+ */
+export function broadcastToZone(id: string, wav: Blob): Promise<BroadcastResult> {
+  return request<BroadcastResult>(`/api/zones/${id}/broadcast`, {
+    method: 'POST',
+    body: wav,
+    // Explicit content type suppresses the default JSON header for this binary upload.
+    headers: { 'Content-Type': 'audio/wav' },
+  })
 }
