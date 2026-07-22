@@ -8,24 +8,33 @@
 src/Oceana.Server/
 ├── Program.cs                     # composition root
 ├── Features/
-│   └── Agents/                    # the "Agents" vertical slice
-│       ├── AgentInfo.cs           # domain model + status
-│       ├── AgentStatus.cs
-│       ├── IAgentRegistry.cs      # registry abstraction + in-memory impl
-│       ├── AgentRegistry.cs
-│       ├── ListAgents/            # one folder per endpoint (REPR)
-│       ├── GetAgent/
-│       ├── SetRouting/            # PUT /agents/{id}/routing (endpoint + request + validator)
-│       ├── RemoveAgent/
-│       ├── StartStream/           # endpoint + request + response + validator
-│       └── StopStream/
+│   ├── Agents/                    # the "Agents" vertical slice
+│   │   ├── AgentInfo.cs           # domain model + status
+│   │   ├── AgentStatus.cs
+│   │   ├── IAgentRegistry.cs      # registry abstraction + in-memory impl
+│   │   ├── AgentRegistry.cs
+│   │   ├── ListAgents/            # one folder per endpoint (REPR)
+│   │   ├── GetAgent/
+│   │   ├── SetRouting/            # PUT /agents/{id}/routing (endpoint + request + validator)
+│   │   ├── RemoveAgent/
+│   │   ├── StartStream/           # endpoint + request + response + validator
+│   │   └── StopStream/
+│   └── Zones/                     # the "Zones" vertical slice
+│       ├── ZoneInfo.cs            # domain model
+│       ├── ZoneDevice.cs          # (agentId, deviceId) assignment
+│       ├── ZoneUpdateResult.cs    # Updated / NotFound / NameConflict
+│       ├── IZoneRegistry.cs       # registry abstraction + in-memory impl
+│       ├── ZoneRegistry.cs
+│       ├── ListZones/  GetZone/   # one folder per endpoint (REPR)
+│       ├── CreateZone/  UpdateZone/
+│       └── RemoveZone/
 └── Infrastructure/                # shared technical services (not a feature)
     ├── Streaming/                 # tone generation + TCP streaming
-    └── Realtime/                  # status hub + agent-control hub + notifier/commander
+    └── Realtime/                  # agent status hub + zone status hub + agent-control hub + notifiers/commander
 ```
 
-- **`Features/Agents/`** is the only slice today. Each use-case is a folder holding its FastEndpoints endpoint, its request/response DTOs, and its FluentValidation validator — everything for that operation in one place.
-- **`Infrastructure/`** holds cross-cutting services shared across (future) slices: audio streaming and the SignalR realtime layer.
+- **`Features/Agents/`** and **`Features/Zones/`** are the slices today. Each use-case is a folder holding its FastEndpoints endpoint, its request/response DTOs, and its FluentValidation validator — everything for that operation in one place.
+- **`Infrastructure/`** holds cross-cutting services shared across slices: audio streaming and the SignalR realtime layer.
 
 > See the [architecture](./architecture.md#server-side-structure-vertical-slices--shared-infrastructure) note about the intentional (temporary) dependency from `Infrastructure` onto the Agents slice's domain types.
 
@@ -47,6 +56,15 @@ The endpoints and their status codes are tabulated in [api.md](./api.md).
 - **Agent-driven, not API-managed:** agents self-register over the control connection (see [Agent control plane](#agent-control-plane)). `RegisterOrUpdate` upserts by the agent's own id (preserving routing/status); `MarkOffline` flips `Connected` on disconnect, ignoring a stale drop after the agent has already reconnected. Nothing is persisted — empty on restart.
 - Tracks per agent: `Connected` (control-connection state), reported `Devices`, desired `Routing`, and [`AgentStatus`](../src/Oceana.Server/Features/Agents/AgentStatus.cs) (`Idle → Connecting → Streaming`, or `Faulted`, back to `Idle`).
 
+## Zone registry
+
+[`IZoneRegistry`](../src/Oceana.Server/Features/Zones/IZoneRegistry.cs) / [`ZoneRegistry`](../src/Oceana.Server/Features/Zones/ZoneRegistry.cs):
+
+- In-memory, registered as a **singleton**; empty on restart (no persistence yet).
+- **API-managed** (unlike agents): `Create` generates the zone id; `Update` replaces name + devices; `Remove` deletes. Endpoints notify over `/hubs/zones` on success.
+- **Unique names.** Because uniqueness spans keys, writes are serialised by a single `lock` guarding a `Dictionary<Guid, ZoneInfo>` plus a case-insensitive name→id index (a deliberate departure from `AgentRegistry`'s per-key CAS loops). `Create` returns null and `Update` returns `NameConflict` when a name is taken (→ `409`); a rename may keep the zone's own name.
+- A zone holds a name and a list of [`ZoneDevice`](../src/Oceana.Server/Features/Zones/ZoneDevice.cs) `(agentId, deviceId)` pairs. Membership is **not** validated against the agent registry, so a zone may reference an offline or since-removed device; the front end resolves names/availability against `GET /api/agents`. Streaming to a zone is future work ([roadmap.md](./roadmap.md)).
+
 ## Tone streaming
 
 The current audio source is a **generated sine test tone** (proves the full pipeline without external inputs).
@@ -65,7 +83,9 @@ The connection is abstracted behind [`IAgentConnection`](../src/Oceana.Server/In
 
 [`AgentStatusHub`](../src/Oceana.Server/Infrastructure/Realtime/AgentStatusHub.cs) is a strongly-typed hub (`Hub<IAgentStatusClient>`) mapped at **`/hubs/agents`**. The server pushes changes through [`IStatusNotifier`](../src/Oceana.Server/Infrastructure/Realtime/IStatusNotifier.cs) → [`SignalRStatusNotifier`](../src/Oceana.Server/Infrastructure/Realtime/SignalRStatusNotifier.cs) whenever an agent is registered, changes status, or is removed. Client methods: `AgentChanged(AgentInfo)` and `AgentRemoved(Guid)`. Enums are serialised **as strings**. Contract detail in [api.md](./api.md).
 
-> The status hub isn't yet exercised by a browser client (a React app will consume it); the agent-control hub below *is* exercised by the live agent.
+[`ZoneStatusHub`](../src/Oceana.Server/Infrastructure/Realtime/ZoneStatusHub.cs) (`Hub<IZoneStatusClient>`) is the zones analogue, mapped at **`/hubs/zones`**. The zone endpoints push through [`IZoneStatusNotifier`](../src/Oceana.Server/Infrastructure/Realtime/IZoneStatusNotifier.cs) → [`SignalRZoneStatusNotifier`](../src/Oceana.Server/Infrastructure/Realtime/SignalRZoneStatusNotifier.cs) on create/update/remove. Client methods: `ZoneChanged(ZoneInfo)` and `ZoneRemoved(Guid)`.
+
+> The front end consumes both status hubs; the agent-control hub below is exercised by the live agent.
 
 ## Agent control plane
 
@@ -80,9 +100,10 @@ Shared DTOs (`AgentRegistration`, `AgentRouting`, `AudioDevice`, `IAgentControlC
 ## Cross-cutting setup ([`Program.cs`](../src/Oceana.Server/Program.cs))
 
 - **OpenAPI** via `FastEndpoints.OpenApi` (Microsoft.AspNetCore.OpenApi under the hood). Document name `v1`; served at `/openapi/v1.json` **in Development only**.
-- **CORS** policy `frontend`: origins from config `Cors:AllowedOrigins` (default `http://localhost:5173`, `http://localhost:3000`), `AllowAnyHeader` + `AllowAnyMethod` + `AllowCredentials` (the last is needed for SignalR).
+- **CORS** policy `frontend`: reflects **any** origin (`SetIsOriginAllowed(_ => true)`) with `AllowAnyHeader` + `AllowAnyMethod` + `AllowCredentials` (credentials are needed for SignalR, and can't be combined with `AllowAnyOrigin`, hence origin reflection). Permissive by design while there's no auth; tighten to an allow-list alongside authentication ([roadmap.md](./roadmap.md)).
 - **Logging:** Serilog (console + request logging).
-- DI singletons: `IAgentRegistry`, `IAgentConnectionFactory`, `IStatusNotifier`, `IAudioStreamManager`.
+- DI singletons: `IAgentRegistry`, `IAgentConnectionFactory`, `IStatusNotifier`, `IAudioStreamManager`, `IZoneRegistry`, `IZoneStatusNotifier`.
+- **Hubs mapped:** `/hubs/agents`, `/hubs/agents-control`, `/hubs/zones`.
 
 ## Ports (note the discrepancy)
 

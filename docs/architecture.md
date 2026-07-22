@@ -12,7 +12,7 @@ Oceana is three deployable/shared pieces plus a planned front end:
 | **Contracts** | [`Oceana.Contracts`](../src/Oceana.Contracts) | Shared DTOs for the agent↔server SignalR control plane (registration, devices, routing). Referenced by both server and agent. |
 | **Agent** | [`Oceana.Agent.Windows`](../src/Oceana.Agent.Windows) | Runs on a playback machine. Listens for audio, opens an outbound control connection to the server to self-register and receive routing, then de-interleaves and plays channel subsets across one or more devices. |
 | **Server** | [`Oceana.Server`](../src/Oceana.Server) | Central control plane. Tracks self-registered agents, pushes their routing, and streams audio to them. Exposes a REST + SignalR API. |
-| **Front end** *(planned)* | — | A React app that will drive the server's REST API and subscribe to SignalR for live status. Not yet built. |
+| **Front end** | [`Oceana.Web`](../src/Oceana.Web) | A React + MUI SPA (Vite + TypeScript) that drives the server's REST API and subscribes to the `/hubs/agents` and `/hubs/zones` SignalR hubs for live status. Manages agents and **zones** (named groups of devices). See [web.md](./web.md). |
 
 ## The connection model (important)
 
@@ -29,7 +29,7 @@ For **control**, the direction is the opposite: the **agent dials the server**, 
 
 ```mermaid
 flowchart LR
-    UI["React front end<br/>(planned)"]
+    UI["React front end<br/>(Oceana.Web)"]
     subgraph Server["Oceana.Server (Web API)"]
         REST["REST endpoints<br/>/api/agents/*"]
         HUB["Status hub<br/>/hubs/agents"]
@@ -107,6 +107,7 @@ The server is organised by **feature (vertical slice)** rather than by technical
 | Term | Meaning |
 |------|---------|
 | **Agent** | A playback endpoint (`Oceana.Agent.Windows`) that plays audio. It's the audio TCP *listener* and the control-plane SignalR *client* (dials the server). |
+| **Zone** | A named, user-managed group of audio devices (drawn from one or more agents) intended to be streamed to together. Managed server-side (in-memory) and in the front end; streaming to a zone is future work. |
 | **Server** | The control plane (`Oceana.Server`) that tracks agents, pushes routing, and streams audio. It's the audio TCP *client* and hosts the control + status hubs. |
 | **Control plane / data plane** | Control = agent↔server SignalR (registration, routing, status). Data = the server→agent TCP audio stream. |
 | **OCAP** | "Oceana Audio Protocol" — the wire format: a fixed 16-byte handshake header followed by raw PCM. See [protocol.md](./protocol.md). |

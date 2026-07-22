@@ -1,0 +1,6 @@
+/* Minimal globals; MUI's CssBaseline handles the rest of the reset. */
+html,
+body,
+#root {
+  height: 100%;
+}

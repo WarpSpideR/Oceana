@@ -1,11 +1,11 @@
 # API Reference
 
-> The HTTP + SignalR contract exposed by [`Oceana.Server`](./server.md) — what the (planned) React front end, or any client, consumes. REST routes are under the global prefix **`/api`**; there are two SignalR hubs — **`/hubs/agents`** (front-end status) and **`/hubs/agents-control`** (agents connect here; not for the front end).
+> The HTTP + SignalR contract exposed by [`Oceana.Server`](./server.md) — what the React front end, or any client, consumes. REST routes are under the global prefix **`/api`**; there are three SignalR hubs — **`/hubs/agents`** (front-end agent status) and **`/hubs/zones`** (front-end zone status), plus **`/hubs/agents-control`** (agents connect here; not for the front end).
 
 ## Base URLs & CORS
 
 - Dev server (launch profile): `http://localhost:50858` (HTTP) / `https://localhost:50857` (HTTPS). Running the DLL directly (or with `ASPNETCORE_URLS`) uses `http://localhost:5069`. See the [ports note](./server.md#ports-note-the-discrepancy).
-- **CORS** allows origins `http://localhost:5173` and `http://localhost:3000` by default (config key `Cors:AllowedOrigins`), with credentials — for the front-end REST + `/hubs/agents`. (The agent control hub isn't browser-facing, so CORS doesn't apply to it.)
+- **CORS** currently allows **any origin** (the request origin is reflected, with credentials) so the front end works from whatever dev port it runs on — there is no auth yet. This will be tightened to an explicit allow-list when authentication lands ([roadmap.md](./roadmap.md)). (The agent control hub isn't browser-facing, so CORS doesn't apply to it.)
 - **Auth:** none currently (all endpoints and hubs are anonymous).
 - **Enums** are serialised as **strings** (e.g. `"Idle"`, not `0`) in both REST and SignalR payloads.
 
@@ -85,6 +85,35 @@ curl -X DELETE http://localhost:5069/api/agents/{id}/stream   # → 204 (or 404 
 curl -X DELETE http://localhost:5069/api/agents/{id}          # → 204
 ```
 
+## Zones
+
+A **zone** is a named group of audio devices (drawn from one or more agents) that audio can be streamed to together. Zones are user-managed (there's a create endpoint, unlike agents), stored in-memory, and reset on restart. Streaming *to* a zone isn't built yet — this is management only.
+
+| # | Verb & route | Body | Success | Errors |
+|--:|--------------|------|---------|--------|
+| 1 | `GET /api/zones` | — | `200` `ZoneInfo[]` | — |
+| 2 | `GET /api/zones/{id}` | — | `200` `ZoneInfo` | `404` unknown id |
+| 3 | `POST /api/zones` | `{ name, devices }` | `201` `ZoneInfo` (+ `Location`) | `409` duplicate name · `400` validation |
+| 4 | `PUT /api/zones/{id}` | `{ name, devices }` | `200` `ZoneInfo` (replaces name + devices) | `404` unknown id · `409` duplicate name · `400` validation |
+| 5 | `DELETE /api/zones/{id}` | — | `204` | `404` unknown id |
+
+Zone **names are unique** (case-insensitive, trimmed); a clashing name returns `409`. A rename may keep the zone's own name. Validation (`400`): name is required; each device must reference an agent and a device; a device cannot appear twice in one zone. Create/change/remove broadcast over `/hubs/zones` (see below).
+
+### `ZoneInfo`
+```json
+{
+  "id": "6b1e…",
+  "name": "Kitchen",
+  "devices": [ { "agentId": "44e23759-…", "deviceId": "{0.0.0.00000000}.{01202ecf-…}" } ]
+}
+```
+
+### `ZoneDevice`
+```json
+{ "agentId": "44e23759-…", "deviceId": "{0.0.0.00000000}.{01202ecf-…}" }
+```
+A zone device is the pair (owning agent id, that agent's stable device id). Zones store only these ids; a client resolves display names/availability against `GET /api/agents`. Assignments referencing an offline or removed agent/device are kept (not auto-pruned). `POST`/`PUT` accept an `outputs`-free body of `{ "name": "Kitchen", "devices": [ … ] }`; an empty `devices` list is a valid (empty) zone.
+
 ## SignalR — front-end status hub `/hubs/agents`
 
 Strongly-typed hub ([`AgentStatusHub`](../src/Oceana.Server/Infrastructure/Realtime/AgentStatusHub.cs)) that **pushes** agent changes to connected front ends:
@@ -103,6 +132,17 @@ await conn.start();
 ```
 
 A front end loads the initial list via `GET /api/agents`, then keeps it live via these events. The hub is push-only (no client→server methods).
+
+## SignalR — zone status hub `/hubs/zones`
+
+Strongly-typed hub ([`ZoneStatusHub`](../src/Oceana.Server/Infrastructure/Realtime/ZoneStatusHub.cs)) that **pushes** zone changes to connected front ends (the zones analogue of `/hubs/agents`):
+
+| Method | Payload | Fired when |
+|--------|---------|-----------|
+| `ZoneChanged` | `ZoneInfo` | A zone is created or its name/devices change. |
+| `ZoneRemoved` | `zoneId` (`Guid` string) | A zone is deleted. |
+
+A front end loads the initial list via `GET /api/zones`, then keeps it live via these events. Push-only (no client→server methods).
 
 ## SignalR — agent control hub `/hubs/agents-control`
 

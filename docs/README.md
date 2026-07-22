@@ -11,8 +11,7 @@ The current codebase is an early, working **prototype** of that pipeline:
 - **`Oceana.Protocol`** — a tiny shared library defining the "OCAP" wire format used between server and agent.
 - **`Oceana.Agent.Windows`** — a Windows console app that listens for a connection and plays the incoming audio to the default output device (via NAudio).
 - **`Oceana.Server`** — an ASP.NET Core Web API (FastEndpoints + SignalR) that manages a registry of agents and streams a **generated sine test tone** to them on demand.
-
-A **React front end** is planned but not yet built; the server already exposes the REST + SignalR surface it will consume.
+- **`Oceana.Web`** — a **React + MUI single-page app** (Vite + TypeScript) that consumes the server's REST + SignalR surface: a live agent dashboard with per-agent routing and test-tone stream controls.
 
 > **Current state vs. the vision.** The root [`README.md`](../README.md) describes a broad, aspirational whole-home-audio product (many input sources, playlists, EQ, dashboards). That is the long-term goal, **not** what the code does today. This `docs/` folder documents the software **as it actually exists**. See [roadmap.md](./roadmap.md) for the gap between the two.
 
@@ -24,7 +23,8 @@ A **React front end** is planned but not yet built; the server already exposes t
 | [protocol.md](./protocol.md) | The OCAP wire format — the 16-byte handshake header and the raw-PCM stream that follows. |
 | [agent.md](./agent.md) | The Windows playback agent: listener, playback pipeline, jitter buffering, configuration. |
 | [server.md](./server.md) | The Web API server: vertical-slice architecture, agent registry, tone streaming, SignalR. |
-| [api.md](./api.md) | The consumer-facing contract: REST endpoints and the SignalR hub (what the front end will use). |
+| [api.md](./api.md) | The consumer-facing contract: REST endpoints and the SignalR hub (what the front end consumes). |
+| [web.md](./web.md) | The React + MUI front end: stack, vertical-slice structure, dev/build scripts, server connectivity. |
 | [development.md](./development.md) | Build, run, and test the solution; code-style rules; notable package/tooling decisions. |
 | [roadmap.md](./roadmap.md) | What's implemented vs. planned, and the rationale behind the key decisions made so far. |
 
@@ -35,5 +35,6 @@ A **React front end** is planned but not yet built; the server already exposes t
 | [`Oceana.Protocol`](../src/Oceana.Protocol) | Class library | `net10.0` |
 | [`Oceana.Agent.Windows`](../src/Oceana.Agent.Windows) | Console app | `net10.0-windows10.0.19041.0` |
 | [`Oceana.Server`](../src/Oceana.Server) | ASP.NET Core Web API | `net10.0` |
+| [`Oceana.Web`](../src/Oceana.Web) | React SPA (Vite + TypeScript) | Node / npm (not MSBuild) |
 
-Everything targets **.NET 10**. Build and test instructions are in [development.md](./development.md).
+The .NET projects target **.NET 10**; the front end is a standalone npm/Vite project (deliberately kept out of the solution — see [web.md](./web.md)). Build and test instructions are in [development.md](./development.md).

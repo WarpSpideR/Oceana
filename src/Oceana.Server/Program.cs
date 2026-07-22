@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using FastEndpoints;
 using FastEndpoints.OpenApi;
 using Oceana.Server.Features.Agents;
+using Oceana.Server.Features.Zones;
 using Oceana.Server.Infrastructure.Realtime;
 using Oceana.Server.Infrastructure.Streaming;
 using Serilog;
@@ -24,14 +25,17 @@ public static class Program
         builder.Services.AddSerilog(configuration => configuration.WriteTo.Console());
 
         const string corsPolicyName = "frontend";
-        var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-            ?? new[] { "http://localhost:5173", "http://localhost:3000" };
 
+        // There is no authentication yet, so the front end is allowed from any
+        // origin (whatever dev port the SPA runs on). AllowCredentials — needed
+        // for SignalR — cannot be combined with AllowAnyOrigin, so the request
+        // origin is reflected via SetIsOriginAllowed instead. Tighten this to an
+        // explicit allow-list when authentication is added (see roadmap.md).
         builder.Services.AddCors(options =>
             options.AddPolicy(
                 corsPolicyName,
                 policy => policy
-                    .WithOrigins(allowedOrigins)
+                    .SetIsOriginAllowed(_ => true)
                     .AllowAnyHeader()
                     .AllowAnyMethod()
                     .AllowCredentials()));
@@ -52,6 +56,8 @@ public static class Program
         builder.Services.AddSingleton<IStatusNotifier, SignalRStatusNotifier>();
         builder.Services.AddSingleton<IAgentRoutingCommander, SignalRRoutingCommander>();
         builder.Services.AddSingleton<IAudioStreamManager, AudioStreamManager>();
+        builder.Services.AddSingleton<IZoneRegistry, ZoneRegistry>();
+        builder.Services.AddSingleton<IZoneStatusNotifier, SignalRZoneStatusNotifier>();
 
         var app = builder.Build();
 
@@ -70,6 +76,7 @@ public static class Program
         });
         app.MapHub<AgentStatusHub>("/hubs/agents");
         app.MapHub<AgentControlHub>("/hubs/agents-control");
+        app.MapHub<ZoneStatusHub>("/hubs/zones");
 
         app.Run();
     }
