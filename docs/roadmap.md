@@ -12,6 +12,7 @@
 - **Server control plane** — agents **self-register** over a persistent SignalR connection (`/hubs/agents-control`) reporting their devices; the server pushes **channel→device routing**, applied on the agent's next stream ([server.md](./server.md#agent-control-plane), [agent.md](./agent.md#server-control-connection)).
 - **React front end** (`Oceana.Web`) — a Vite + TypeScript + MUI SPA consuming the REST API and the `/hubs/agents` + `/hubs/zones` status hubs: a live agent dashboard, per-agent channel→device routing editor, and test-tone stream start/stop ([web.md](./web.md)).
 - **Zones (management)** — a `Features/Zones` slice + UI to create/rename/delete named zones and assign devices from any agent(s), kept live over `/hubs/zones`. In-memory, unique names ([server.md](./server.md#zone-registry), [api.md](./api.md#zones)).
+- **Configuration persistence** — zones and agent configuration (identity, last-seen devices, desired routing) persist to JSON (`data/*.json`) and survive a restart; live state is re-derived on reconnect ([server.md](./server.md#persistence)).
 - **Zone broadcast** — record a message from the browser microphone and play it on every reachable device in a zone. The **first real audio source** and the first **fan-out**: the server decodes the uploaded WAV, and for each agent pushes routing to the zone's devices, streams the mono PCM (best-effort, skips offline/busy agents), then restores routing ([server.md](./server.md#zone-broadcast), [api.md](./api.md#broadcast-a-recorded-message), [web.md](./web.md#broadcasting-a-message)).
 - **Verified end-to-end**: agent self-registers with devices → push routing → 4-channel stream splits across two devices per the server config → disconnect flips `connected`.
 - **35 unit tests** on a modern xUnit v3 / MTP stack.
@@ -33,7 +34,7 @@
 | **Clock-drift handling** | Detect/compensate when a source's production rate drifts from the agent's playback rate. | A buffer that slowly drains despite good pacing is a *rate deficit*, which no fixed jitter buffer can fix; needs resampling or adaptive pacing. See [agent.md](./agent.md#playback-pipeline). |
 | **Shared kernel** | Lift `AgentInfo`/`AgentStatus`/`IAgentRegistry` out of the Agents slice when a 2nd slice appears. | Removes the temporary `Infrastructure → slice` dependency ([architecture.md](./architecture.md#server-side-structure-vertical-slices--shared-infrastructure)). |
 | **Code coverage** | Wire up MTP's `Microsoft.Testing.Extensions.CodeCoverage` (`dotnet test --coverage`). | The old coverlet collector doesn't apply under MTP ([development.md](./development.md#code-coverage-not-yet-wired)). |
-| **Persistence** | Persist the agent registry (it's in-memory today). | Registry is empty on restart. |
+| **Persistence** | *Configuration* (zones + agent config) now persists to JSON ([server.md](./server.md#persistence)). Remaining: a real datastore (e.g. SQLite) if the data model grows, and persisting more than config. | Done for config; live state is intentionally not persisted. |
 
 ## Decisions already made (and why)
 

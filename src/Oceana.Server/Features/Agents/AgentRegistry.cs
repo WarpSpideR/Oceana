@@ -1,10 +1,13 @@
 using System.Collections.Concurrent;
 using Oceana.Contracts;
+using Oceana.Server.Infrastructure.Persistence;
 
 namespace Oceana.Server.Features.Agents;
 
 /// <summary>
-/// An in-memory <see cref="IAgentRegistry"/> backed by concurrent dictionaries.
+/// An in-memory <see cref="IAgentRegistry"/> backed by concurrent dictionaries, with optional JSON
+/// persistence of agent <em>configuration</em> (identity, last-seen devices and desired routing).
+/// Known agents are loaded on startup as offline; their live state is re-derived on reconnect.
 /// </summary>
 public sealed class AgentRegistry : IAgentRegistry
 {
@@ -13,6 +16,35 @@ public sealed class AgentRegistry : IAgentRegistry
     private readonly ConcurrentDictionary<Guid, AgentInfo> agents = new ConcurrentDictionary<Guid, AgentInfo>();
     private readonly ConcurrentDictionary<string, Guid> connectionAgents = new ConcurrentDictionary<string, Guid>();
     private readonly ConcurrentDictionary<Guid, string> currentConnections = new ConcurrentDictionary<Guid, string>();
+    private readonly IStateStore<AgentsState>? store;
+
+    /// <summary>
+    /// Initialises a new instance of the <see cref="AgentRegistry"/> class.
+    /// </summary>
+    /// <param name="store">The store to persist agent configuration to; null disables persistence.</param>
+    public AgentRegistry(IStateStore<AgentsState>? store = null)
+    {
+        this.store = store;
+
+        var state = store?.Load();
+        if (state is not null)
+        {
+            foreach (var config in state.Agents)
+            {
+                this.agents[config.Id] = new AgentInfo
+                {
+                    Id = config.Id,
+                    Name = config.Name,
+                    Host = string.Empty,
+                    Port = 0,
+                    Connected = false,
+                    Status = AgentStatus.Idle,
+                    Devices = config.Devices,
+                    Routing = config.Routing,
+                };
+            }
+        }
+    }
 
     /// <inheritdoc/>
     public AgentInfo RegisterOrUpdate(AgentRegistration registration, string host, string connectionId)
@@ -41,6 +73,7 @@ public sealed class AgentRegistry : IAgentRegistry
 
         connectionAgents[connectionId] = registration.AgentId;
         currentConnections[registration.AgentId] = connectionId;
+        PersistConfig();
         return updated;
     }
 
@@ -88,7 +121,13 @@ public sealed class AgentRegistry : IAgentRegistry
     public bool Remove(Guid id)
     {
         currentConnections.TryRemove(id, out _);
-        return agents.TryRemove(id, out _);
+        if (agents.TryRemove(id, out _))
+        {
+            PersistConfig();
+            return true;
+        }
+
+        return false;
     }
 
     /// <inheritdoc/>
@@ -114,10 +153,25 @@ public sealed class AgentRegistry : IAgentRegistry
             var updated = existing with { Routing = routing };
             if (agents.TryUpdate(id, updated, existing))
             {
+                PersistConfig();
                 return updated;
             }
         }
 
         return null;
+    }
+
+    // Persists agent configuration (identity, last-seen devices, routing) — not live state.
+    private void PersistConfig()
+    {
+        if (store is null)
+        {
+            return;
+        }
+
+        var configs = agents.Values
+            .Select(agent => new AgentConfig(agent.Id, agent.Name, agent.Devices, agent.Routing))
+            .ToArray();
+        store.Save(new AgentsState(configs));
     }
 }

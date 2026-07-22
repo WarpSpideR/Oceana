@@ -53,14 +53,14 @@ The endpoints and their status codes are tabulated in [api.md](./api.md).
 [`IAgentRegistry`](../src/Oceana.Server/Features/Agents/IAgentRegistry.cs) / [`AgentRegistry`](../src/Oceana.Server/Features/Agents/AgentRegistry.cs):
 
 - In-memory, thread-safe (`ConcurrentDictionary<Guid, AgentInfo>`), registered as a **singleton**.
-- **Agent-driven, not API-managed:** agents self-register over the control connection (see [Agent control plane](#agent-control-plane)). `RegisterOrUpdate` upserts by the agent's own id (preserving routing/status); `MarkOffline` flips `Connected` on disconnect, ignoring a stale drop after the agent has already reconnected. Nothing is persisted — empty on restart.
+- **Agent-driven, not API-managed:** agents self-register over the control connection (see [Agent control plane](#agent-control-plane)). `RegisterOrUpdate` upserts by the agent's own id (preserving routing/status); `MarkOffline` flips `Connected` on disconnect, ignoring a stale drop after the agent has already reconnected. Agent **configuration** (identity, last-seen devices, routing) is persisted (see [Persistence](#persistence)); live state is re-derived on reconnect.
 - Tracks per agent: `Connected` (control-connection state), reported `Devices`, desired `Routing`, and [`AgentStatus`](../src/Oceana.Server/Features/Agents/AgentStatus.cs) (`Idle → Connecting → Streaming`, or `Faulted`, back to `Idle`).
 
 ## Zone registry
 
 [`IZoneRegistry`](../src/Oceana.Server/Features/Zones/IZoneRegistry.cs) / [`ZoneRegistry`](../src/Oceana.Server/Features/Zones/ZoneRegistry.cs):
 
-- In-memory, registered as a **singleton**; empty on restart (no persistence yet).
+- In-memory, registered as a **singleton**, write-through persisted (see [Persistence](#persistence)) so zones survive a restart.
 - **API-managed** (unlike agents): `Create` generates the zone id; `Update` replaces name + devices; `Remove` deletes. Endpoints notify over `/hubs/zones` on success.
 - **Unique names.** Because uniqueness spans keys, writes are serialised by a single `lock` guarding a `Dictionary<Guid, ZoneInfo>` plus a case-insensitive name→id index (a deliberate departure from `AgentRegistry`'s per-key CAS loops). `Create` returns null and `Update` returns `NameConflict` when a name is taken (→ `409`); a rename may keep the zone's own name.
 - A zone holds a name and a list of [`ZoneDevice`](../src/Oceana.Server/Features/Zones/ZoneDevice.cs) `(agentId, deviceId)` pairs. Membership is **not** validated against the agent registry, so a zone may reference an offline or since-removed device; the front end resolves names/availability against `GET /api/agents`. Playing audio to a zone is the [zone broadcast](#zone-broadcast) below.
@@ -111,8 +111,17 @@ Shared DTOs (`AgentRegistration`, `AgentRouting`, `AudioDevice`, `IAgentControlC
 - **OpenAPI** via `FastEndpoints.OpenApi` (Microsoft.AspNetCore.OpenApi under the hood). Document name `v1`; served at `/openapi/v1.json` **in Development only**.
 - **CORS** policy `frontend`: reflects **any** origin (`SetIsOriginAllowed(_ => true)`) with `AllowAnyHeader` + `AllowAnyMethod` + `AllowCredentials` (credentials are needed for SignalR, and can't be combined with `AllowAnyOrigin`, hence origin reflection). Permissive by design while there's no auth; tighten to an allow-list alongside authentication ([roadmap.md](./roadmap.md)).
 - **Logging:** Serilog (console + request logging).
-- DI singletons: `IAgentRegistry`, `IAgentConnectionFactory`, `IStatusNotifier`, `IAudioStreamManager`, `IZoneBroadcaster`, `IZoneRegistry`, `IZoneStatusNotifier`.
+- DI singletons: `IAgentRegistry`, `IAgentConnectionFactory`, `IStatusNotifier`, `IAudioStreamManager`, `IZoneBroadcaster`, `IZoneRegistry`, `IZoneStatusNotifier`, and two `IStateStore<>` (see below).
 - **Hubs mapped:** `/hubs/agents`, `/hubs/agents-control`, `/hubs/zones`.
+
+## Persistence
+
+Configuration is persisted as JSON so it survives a restart; **live state is not** (it is re-derived when agents reconnect and stream). Behind the existing registry interfaces:
+
+- [`IStateStore<T>`](../src/Oceana.Server/Infrastructure/Persistence/IStateStore.cs) / [`JsonStateStore<T>`](../src/Oceana.Server/Infrastructure/Persistence/JsonStateStore.cs) — loads/saves a state snapshot as an indented JSON file. Writes are **atomic** (temp file then `File.Move` replace) and lock-serialised; a missing or corrupt file loads as `null` (start fresh).
+- **Zones** → `data/zones.json` ([`ZonesState`](../src/Oceana.Server/Features/Zones/ZonesState.cs)): `ZoneRegistry` loads on startup (ids preserved) and writes through on every `Create`/`Update`/`Remove`.
+- **Agents** → `data/agents.json` ([`AgentConfig`](../src/Oceana.Server/Features/Agents/AgentConfig.cs)/[`AgentsState`](../src/Oceana.Server/Features/Agents/AgentsState.cs)): only **configuration** — id, last-seen name/devices, desired `Routing`. Loaded on startup as **offline** known agents; when the agent reconnects, `RegisterOrUpdate` refreshes host/port/devices/connection and preserves the persisted routing (which `Register` returns to the agent). Written through on register, `SetDesiredRouting`, and remove — **not** on `MarkOffline`/`UpdateStatus` (those are live-only).
+- **Location:** `Storage:Path` in config (absolute, or relative to the content root; default `data`). The directory is git-ignored. The registries take the store as an **optional** dependency, so unit tests construct them with no persistence (or an in-memory fake).
 
 ## Ports (note the discrepancy)
 

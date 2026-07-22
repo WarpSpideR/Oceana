@@ -348,3 +348,6 @@ healthchecksdb
 
 # RotaNest specific excludes
 /RotaNest/**/local.settings.json
+
+# Oceana server persisted configuration (JSON state store)
+src/Oceana.Server/data/

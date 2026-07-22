@@ -1,14 +1,37 @@
+using Oceana.Server.Infrastructure.Persistence;
+
 namespace Oceana.Server.Features.Zones;
 
 /// <summary>
-/// An in-memory <see cref="IZoneRegistry"/>. Writes are serialised by a lock so the unique-name
-/// index stays consistent with the zone store; nothing is persisted, so it is empty on restart.
+/// An in-memory <see cref="IZoneRegistry"/> with optional JSON persistence. Writes are serialised
+/// by a lock so the unique-name index stays consistent with the zone store, and each change is
+/// written through to the configured <see cref="IStateStore{T}"/>; the store is loaded on startup.
 /// </summary>
 public sealed class ZoneRegistry : IZoneRegistry
 {
     private readonly object gate = new object();
     private readonly Dictionary<Guid, ZoneInfo> zones = new Dictionary<Guid, ZoneInfo>();
     private readonly Dictionary<string, Guid> namesToId = new Dictionary<string, Guid>();
+    private readonly IStateStore<ZonesState>? store;
+
+    /// <summary>
+    /// Initialises a new instance of the <see cref="ZoneRegistry"/> class.
+    /// </summary>
+    /// <param name="store">The store to persist zones to and load them from; null disables persistence.</param>
+    public ZoneRegistry(IStateStore<ZonesState>? store = null)
+    {
+        this.store = store;
+
+        var state = store?.Load();
+        if (state is not null)
+        {
+            foreach (var zone in state.Zones)
+            {
+                this.zones[zone.Id] = zone;
+                this.namesToId[NameKey(zone.Name)] = zone.Id;
+            }
+        }
+    }
 
     /// <inheritdoc/>
     public ZoneInfo? Create(string name, IReadOnlyList<ZoneDevice> devices)
@@ -32,6 +55,7 @@ public sealed class ZoneRegistry : IZoneRegistry
 
             this.zones[zone.Id] = zone;
             this.namesToId[key] = zone.Id;
+            this.Persist();
             return zone;
         }
     }
@@ -76,6 +100,7 @@ public sealed class ZoneRegistry : IZoneRegistry
             var updated = existing with { Name = trimmed, Devices = devices };
             this.zones[id] = updated;
             this.namesToId[key] = id;
+            this.Persist();
             return ZoneUpdateResult.Success(updated);
         }
     }
@@ -91,9 +116,13 @@ public sealed class ZoneRegistry : IZoneRegistry
             }
 
             this.namesToId.Remove(NameKey(removed.Name));
+            this.Persist();
             return true;
         }
     }
 
     private static string NameKey(string name) => name.Trim().ToLowerInvariant();
+
+    // Called while holding the lock, so the persisted snapshot is always consistent.
+    private void Persist() => this.store?.Save(new ZonesState(this.zones.Values.ToList()));
 }

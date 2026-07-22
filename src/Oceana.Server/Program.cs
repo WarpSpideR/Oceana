@@ -3,6 +3,7 @@ using FastEndpoints;
 using FastEndpoints.OpenApi;
 using Oceana.Server.Features.Agents;
 using Oceana.Server.Features.Zones;
+using Oceana.Server.Infrastructure.Persistence;
 using Oceana.Server.Infrastructure.Realtime;
 using Oceana.Server.Infrastructure.Streaming;
 using Serilog;
@@ -50,6 +51,24 @@ public static class Program
         builder.Services
             .AddSignalR()
             .AddJsonProtocol(options => options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+
+        // Persist configuration (zones + agent config) as JSON under a data directory, resolved
+        // from Storage:Path (absolute, or relative to the content root) and defaulting to ./data.
+        var configuredPath = builder.Configuration["Storage:Path"];
+        var dataDirectory = string.IsNullOrWhiteSpace(configuredPath)
+            ? Path.Combine(builder.Environment.ContentRootPath, "data")
+            : Path.IsPathRooted(configuredPath)
+                ? configuredPath
+                : Path.Combine(builder.Environment.ContentRootPath, configuredPath);
+
+        builder.Services.AddSingleton<IStateStore<ZonesState>>(sp =>
+            new JsonStateStore<ZonesState>(
+                Path.Combine(dataDirectory, "zones.json"),
+                sp.GetRequiredService<ILogger<JsonStateStore<ZonesState>>>()));
+        builder.Services.AddSingleton<IStateStore<AgentsState>>(sp =>
+            new JsonStateStore<AgentsState>(
+                Path.Combine(dataDirectory, "agents.json"),
+                sp.GetRequiredService<ILogger<JsonStateStore<AgentsState>>>()));
 
         builder.Services.AddSingleton<IAgentRegistry, AgentRegistry>();
         builder.Services.AddSingleton<IAgentConnectionFactory, TcpAgentConnectionFactory>();
